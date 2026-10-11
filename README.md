@@ -1,99 +1,106 @@
-# AmartyaOS GNOME Extensions
+# Amartya OS — GNOME Desktop Component
 
-A backup and restoration project for the GNOME Shell extensions and selected
-desktop assets used on Amartya OS.
+A public desktop-integration component for **Amartya OS**, an Ubuntu-based Linux
+setup. This repository brings together GNOME Shell extension sources, desktop
+configuration inventories, selected Amartya OS branding, and tools for
+validating and restoring the custom SDDM login theme.
 
-## Goals
+The aim is to make the Amartya OS GNOME experience understandable, maintainable,
+and reproducible—not just to store a snapshot of one machine.
 
-- Preserve the enabled GNOME extension UUIDs.
-- Back up available extension source directories.
-- Record system, schema, and dependency information.
-- Preserve selected Amartya OS branding and SDDM theme assets.
-- Provide validation and cautious restoration scripts.
-- Keep private settings exports and noisy machine-specific reports out of Git.
-
-## Repository map
+## What this component contains
 
 | Path | Purpose |
 |---|---|
-| `backup/extensions/` | Copies of extension source directories collected during backup |
-| `config/enabled-extensions.txt` | Python-literal snapshot of enabled extension UUIDs |
-| `assets/system/` | Selected system branding and SDDM theme files |
-| `assets/home/` | Selected user-owned assets included in the backup |
-| `manifests/enabled-extensions.txt` | Enabled extension UUID inventory |
-| `manifests/system-info.txt` | Source operating system and GNOME environment information |
-| `manifests/asset-manifest.txt` | Asset inventory |
-| `manifests/schema-files.txt` | Collected schema-file inventory |
-| `manifests/schema-inventory.txt` | Schema and key inventory |
-| `manifests/dependency-audit.txt` | Dependency-audit output |
-| `manifests/custom-assets.tsv` | Selected asset paths and checksums |
-| `manifests/sddm-theme-dependencies.txt` | SDDM theme dependency notes |
-| `scripts/` | Audit, validation, and restoration scripts |
-| `.gitignore` | Excludes private settings and selected noisy reports |
+| `backup/extensions/` | Source copies of 52 GNOME extensions collected for this desktop setup |
+| `config/enabled-extensions.txt` | Snapshot of the enabled GNOME extension UUID list from the source system |
+| `manifests/enabled-extensions.txt` | Inventory of the extension source copies included here |
+| `assets/system/usr/share/amartya-os/` | Selected Amartya OS branding and wallpaper assets |
+| `assets/system/usr/share/sddm/themes/amartya-os/` | Custom SDDM theme files and artwork |
+| `assets/home/` | Selected user-owned wallpaper asset |
+| `manifests/` | System, asset, schema, and SDDM dependency inventories |
+| `scripts/check-sddm-theme.sh` | Checks declared packages and required theme files |
+| `scripts/restore-sddm-theme.sh` | Safely previews or restores the custom SDDM theme |
+| `scripts/audit-*.sh` | Supporting asset and dependency audits |
 
-Large or machine-specific audit reports may be intentionally excluded from Git.
-Check `.gitignore` before adding generated reports.
+## Current capabilities
 
-## Important distinctions
+- Publishes the collected GNOME extension source copies and selected desktop assets.
+- Records the source system's extension UUIDs and environment information.
+- Includes checks for the SDDM theme's declared package dependencies and files.
+- Provides an SDDM theme restore helper that defaults to **dry-run** and refuses
+  to overwrite differing files unless explicitly told to do so.
 
-- An enabled-extension UUID list is not a copy of the extension code.
-- A source-code backup does not guarantee that an extension works on a
-  different GNOME Shell version.
-- Extension preferences, external programs, system packages, and other
-  desktop settings may need separate migration steps.
-- Selected system assets do not constitute a complete operating-system backup.
-- User-specific paths and settings may need to be adapted on another machine.
+## Quick start
 
-## Compatibility
+Clone the component:
 
-Before restoring extensions, check:
+```bash
+git clone https://github.com/amartyasinghnamra/AmartyaOS-Gnome-extensions.git
+cd AmartyaOS-Gnome-extensions
+```
 
-1. The target GNOME Shell version.
-2. Each extension's supported Shell versions and dependencies.
-3. Required system packages and external commands.
-4. Whether the original extension source is still maintained.
-5. Whether enabling an extension could disrupt the current desktop session.
+Check the SDDM theme prerequisites and run the restore script in preview mode:
 
-Do not assume that copying an extension directory alone restores its settings
-or dependencies.
+```bash
+bash scripts/check-sddm-theme.sh
+bash scripts/restore-sddm-theme.sh
+```
 
-## Auditing
+The restore command above is a dry-run: it does not change system files.
 
-Review the scripts before running them. Scripts that modify system files may
-require elevated privileges.
+To apply the SDDM theme after reviewing the preview, run:
 
-The SDDM theme restoration script supports a dry-run mode by default. Review
-its proposed actions before explicitly requesting changes.
+```bash
+sudo bash scripts/restore-sddm-theme.sh --apply
+```
 
-## Privacy and Git hygiene
+If the live theme differs from the repository version, the script stops rather
+than overwriting those differences by default. Review conflicts deliberately;
+only use `--force` when you have decided that replacing the live files is
+appropriate. The script does not restart SDDM or the display manager.
 
-Private settings exports and machine-specific audit reports are excluded by
-`.gitignore`. Review every file before committing, especially configuration
-exports, logs, paths, and extension data.
+## Compatibility and limitations
 
-Do not commit passwords, private keys, tokens, personal account data, or raw
-desktop settings dumps.
+- The source environment is Ubuntu-based Amartya OS with GNOME Shell. The
+  exact supported distribution and GNOME Shell version matrix is not yet
+  defined.
+- The extension directories are source copies, not a guarantee that every
+  extension works with every GNOME Shell version.
+- The enabled UUID snapshot and the set of 52 bundled source copies are
+  different inventories; they should not be treated as interchangeable.
+- This repository does not yet provide a universal one-command installation
+  of all extensions, their preferences, packages, and desktop settings.
+- SDDM is a separate display manager; restoring its theme does not configure
+  GNOME Shell or replace the system's login-manager setup.
+- Review scripts before running them, especially any command requiring
+  administrator privileges.
 
-## Backup and restoration status
+## Contributing and maintenance
 
-This repository records selected files from a particular source installation.
-It is not yet a promise of fully automated, one-command desktop restoration.
-Use the available validation scripts and inspect their output before applying
-changes.
+When improving this component:
 
-## Third-party licenses
+1. Keep installation and restoration steps explicit and safe by default.
+2. Check extension compatibility with the target GNOME Shell version.
+3. Preserve upstream extension attribution, license files, and notices.
+4. Avoid machine-specific paths and private settings in committed files.
+5. Test changes on a non-critical setup before recommending them for general use.
 
-This repository contains backups of third-party GNOME extensions. Their
-source files, assets, and other bundled materials remain subject to the
-applicable upstream license terms and any other relevant rights.
+Issues and pull requests for compatibility fixes, documentation, and safer
+installation workflows are welcome.
 
-A preliminary filename-based audit found separate license or notice files
-for 16 of the 52 bundled extensions. Some other extensions may declare
-license information in metadata, source headers, or upstream repositories;
-the absence of a separate license file does not establish their licensing
-status.
+## Third-party licensing
 
-Before redistributing this repository publicly, verify the applicable
-license terms for each bundled extension and preserve its license and
-copyright notices. Do not assume that every bundled extension has the same
-license or redistribution permissions.
+This repository includes third-party GNOME extension source copies. Each
+extension's source, assets, and bundled materials remain subject to its
+applicable upstream license and copyright notices. Do not assume that every
+extension has the same license or that the entire collection can be relicensed
+as one work. Preserve existing notices and verify the relevant upstream terms
+before redistributing or modifying individual extensions.
+
+## Project status
+
+**Public development component — early stage.** The repository currently
+provides collected source, inventories, selected Amartya OS assets, and a
+cautious SDDM theme restoration helper. A complete, tested desktop-component
+installer and a declared compatibility matrix remain future work.
