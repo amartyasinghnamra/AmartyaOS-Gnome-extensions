@@ -1,0 +1,105 @@
+/*
+ * Cast indicator menu styling.
+ *
+ * Colours are theme-aware rather than hardcoded: the active device uses the
+ * user's system accent colour, and the destructive / warning rows carry a
+ * muted tint that switches between dark- and light-popup variants via the
+ * `.gsc-light` class the indicator toggles from the shell's colour scheme.
+ */
+
+/* Device currently being cast to. */
+.gsc-casting-label {
+    color: #3584e4; /* fallback for shells without accent-colour support */
+    color: -st-accent-color;
+    font-weight: 600;
+}
+
+/* Stop casting: destructive. Default tuned for the (dark) shell popup. */
+.gsc-destructive-label {
+    color: #f9868a;
+}
+
+/* Daemon missing / outdated warning row. */
+.gsc-warning-label {
+    color: #f5c145;
+}
+
+/* Light-popup variants: darker so the tint stays legible on a light menu. */
+.gsc-light .gsc-destructive-label {
+    color: #c01c28;
+}
+
+.gsc-light .gsc-warning-label {
+    color: #9c6500;
+}
+
+/* Daemon setup / update dialog. */
+.gsc-setup-dialog {
+    max-width: 32em;
+}
+
+.gsc-setup-command {
+    font-family: monospace;
+    margin: 14px 0 8px 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background-color: rgba(0, 0, 0, 0.25);
+}
+
+.gsc-setup-status {
+    font-size: 0.9em;
+    color: #9a9a9a;
+}
+
+/* Codec/transport detail lines under the active device. */
+.gsc-detail-line {
+    font-size: 0.85em;
+    color: #9a9a9a;
+}
+
+/*
+ * Cast actions sitting at the end of a device row. Qualified with
+ * `.icon-button` so these beat the shell's own `.icon-button.flat` rules,
+ * which drop the background and leave the buttons looking bare.
+ */
+.icon-button.gsc-row-button {
+    padding: 8px;
+    margin-left: 6px;
+    color: #ffffff;
+    border: 2px solid rgba(255, 255, 255, 0.18);
+    border-radius: 9px;
+    background-color: rgba(255, 255, 255, 0.07);
+    transition-duration: 150ms;
+}
+
+.icon-button.gsc-row-button:hover {
+    border-color: rgba(255, 255, 255, 0.4);
+    background-color: rgba(255, 255, 255, 0.17);
+}
+
+.icon-button.gsc-row-button:active {
+    border-color: rgba(255, 255, 255, 0.5);
+    background-color: rgba(255, 255, 255, 0.28);
+}
+
+/* Keyboard focus: accent ring, matching the shell's focused buttons. */
+.icon-button.gsc-row-button:focus {
+    border-color: #3584e4;
+    border-color: -st-accent-color;
+}
+
+.gsc-light .icon-button.gsc-row-button {
+    color: #000000;
+    border-color: rgba(0, 0, 0, 0.18);
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+.gsc-light .icon-button.gsc-row-button:hover {
+    border-color: rgba(0, 0, 0, 0.35);
+    background-color: rgba(0, 0, 0, 0.14);
+}
+
+.gsc-light .icon-button.gsc-row-button:active {
+    border-color: rgba(0, 0, 0, 0.45);
+    background-color: rgba(0, 0, 0, 0.22);
+}

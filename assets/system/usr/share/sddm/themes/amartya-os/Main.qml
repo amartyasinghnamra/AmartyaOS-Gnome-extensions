@@ -1,0 +1,1298 @@
+	import QtQuick
+	import QtQuick.Controls
+	import QtQuick.Effects
+	import SddmComponents
+
+
+Rectangle {
+    id: root
+
+    property var primaryGeometry: screenModel.geometry(screenModel.primary)
+
+    x: primaryGeometry.x
+    y: primaryGeometry.y
+    width: primaryGeometry.width
+    height: primaryGeometry.height
+
+    color: "black"
+	    focus: true
+	   property bool unlocked: false
+	property bool authenticating: false
+	property bool loginFailed: false
+	property bool showPassword: false
+	property bool capsLockOn: false
+property bool userSelectorOpen: false
+	property bool powerDialogOpen: false
+	property string pendingPowerAction: ""
+
+	property int selectedSession: sessionModel.lastIndex >= 0 ? sessionModel.lastIndex : 0
+	property int selectedUserIndex: userModel.lastIndex >= 0
+		                        ? userModel.lastIndex
+		                        : 0
+	property string selectedUserIcon: {
+	    if (!userModel || userModel.rowCount() <= 0)
+		return ""
+
+	    var icon = userModel.data(
+		userModel.index(selectedUserIndex, 0),
+		260
+	    )
+
+	    return icon ? icon.toString() : ""
+	}
+	property string selectedUsername: {
+	    if (!userModel || userModel.rowCount() <= 0)
+		return ""
+
+	    return userModel.data(
+		userModel.index(selectedUserIndex, 0),
+		257
+	    ) || ""
+	}
+
+	property string selectedRealName: {
+	    if (!userModel || userModel.rowCount() <= 0)
+		return selectedUsername
+
+	    var name = userModel.data(
+		userModel.index(selectedUserIndex, 0),
+		258
+	    )
+
+	    return name && name.length > 0 ? name : selectedUsername
+	}
+	    function unlock() {
+		if (!unlocked) {
+		    unlocked = true
+		    password.forceActiveFocus()
+		}
+	    }
+
+function attemptLogin() {
+    if (password.text.length === 0 || authenticating)
+        return
+
+    authenticating = true
+    loginFailed = false
+
+    sddm.login(
+        selectedUsername,
+        password.text,
+        selectedSession
+    )
+}
+
+	    Keys.onPressed: function(event) {
+		if (!unlocked) {
+		    unlock()
+		    event.accepted = true
+		}
+	    }
+
+	    // ============================================================
+	    // BACKGROUND
+	    // ============================================================
+
+	    Image {
+		id: wallpaper
+		anchors.fill: parent
+		source: "assets/SDDM.png"
+		fillMode: Image.PreserveAspectCrop
+		smooth: true
+
+		scale: root.unlocked ? 1.15 : 1.0
+
+		Behavior on scale {
+		    NumberAnimation {
+		        duration: 1500
+		        easing.type: Easing.OutExpo
+		    }
+		}
+	    }
+
+	    // Darkening layer after unlock.
+	    Rectangle {
+		anchors.fill: parent
+		color: "black"
+		opacity: root.unlocked ? 0.40 : 0.0
+
+		Behavior on opacity {
+		    NumberAnimation { duration: 800 }
+		}
+	    }
+
+	    // ============================================================
+	    // macOS STYLE LOCK SCREEN
+	    // ============================================================
+
+	    Item {
+		id: lockScreen
+		anchors.fill: parent
+
+		opacity: root.unlocked ? 0 : 1
+		scale: root.unlocked ? 1.05 : 1.0
+
+		Behavior on opacity {
+		    NumberAnimation { duration: 800 }
+		}
+
+		Behavior on scale {
+		    NumberAnimation {
+		        duration: 800
+		        easing.type: Easing.OutCubic
+		    }
+		}
+
+		Column {
+		    anchors.top: parent.top
+		    anchors.topMargin: parent.height * 0.12
+		    anchors.horizontalCenter: parent.horizontalCenter
+		    spacing: 8
+
+		    Text {
+		        id: lockTime
+		        anchors.horizontalCenter: parent.horizontalCenter
+		        color: "white"
+		        font.pixelSize: Math.max(72, root.height * 0.11)
+		        font.weight: Font.Bold
+		        font.letterSpacing: -3
+		        style: Text.Raised
+		        styleColor: "#55000000"
+		    }
+
+		    Text {
+		        id: lockDate
+		        anchors.horizontalCenter: parent.horizontalCenter
+		        color: "white"
+		        font.pixelSize: Math.max(20, root.height * 0.026)
+		        font.weight: Font.DemiBold
+		    }
+		}
+
+		Text {
+		    anchors.bottom: parent.bottom
+		    anchors.bottomMargin: 80
+		    anchors.horizontalCenter: parent.horizontalCenter
+
+		    text: "WELCOME TO AMARTYA OS"
+		    color: "white"
+		    opacity: 0.55
+		    font.pixelSize: 18
+		}
+
+		MouseArea {
+		    anchors.fill: parent
+		    onClicked: root.unlock()
+		}
+	    }
+
+	    // ============================================================
+	    // LOGIN
+	    // ============================================================
+
+	    Column {
+		id: loginContainer
+
+		anchors.centerIn: parent
+		width: 340
+		spacing: 18
+
+		opacity: root.unlocked ? 1 : 0
+		scale: root.unlocked ? 1 : 0.94
+
+		Behavior on opacity {
+		    NumberAnimation { duration: 600 }
+		}
+
+		Behavior on scale {
+		    NumberAnimation {
+		        duration: 700
+		        easing.type: Easing.OutExpo
+		    }
+		}
+
+		
+		// Avatar
+	Item {
+	    width: 200
+	    height: 200
+	    anchors.horizontalCenter: parent.horizontalCenter
+
+	    // Profile image
+	    Image {
+		id: profileImage
+
+		anchors.fill: parent
+		source: root.selectedUserIcon
+
+		fillMode: Image.PreserveAspectCrop
+		smooth: true
+		asynchronous: true
+		cache: false
+
+		// Force image into circular mask
+		layer.enabled: true
+
+		layer.effect: MultiEffect {
+		    maskEnabled: true
+		    maskSource: avatarMask
+		}
+	    }
+
+	    // Circular mask
+	    Item {
+		id: avatarMask
+
+		width: 200
+		height: 200
+
+		layer.enabled: true
+		visible: false
+
+		Rectangle {
+		    anchors.fill: parent
+		    radius: width / 2
+		    color: "white"
+		}
+	    }
+
+	    // Fallback if user has no profile picture
+	    Rectangle {
+		anchors.fill: parent
+		radius: width / 2
+
+		color: "#333333"
+
+		visible: profileImage.status !== Image.Ready
+
+		Text {
+		    anchors.centerIn: parent
+
+		    text: root.selectedRealName.length > 0
+		          ? root.selectedRealName.charAt(0).toUpperCase()
+		          : "?"
+
+		    color: "white"
+		    font.pixelSize: 72
+		    font.weight: Font.DemiBold
+		}
+	    }
+
+	    // Circular border
+	    Rectangle {
+		anchors.fill: parent
+		radius: width / 2
+
+		color: "transparent"
+
+		border.width: 2
+		border.color: "#44ffffff"
+
+		z: 10
+	    }
+	}
+
+	Text {
+	    anchors.horizontalCenter: parent.horizontalCenter
+
+	    text: root.selectedRealName
+
+	    color: "white"
+	    font.pixelSize: 24
+	    font.weight: Font.DemiBold
+	}
+		Item { width: 1; height: 2 }
+
+		Rectangle {
+		    id: passwordBox
+
+		    width: parent.width
+		    height: 50
+		    radius: 20
+
+		    color: password.activeFocus
+		           ? "#33ffffff"
+		           : "#20ffffff"
+
+		    border.width: 1
+		    border.color: root.loginFailed
+		                  ? "#ffff453a"
+		                  : password.activeFocus
+		                    ? "#55ffffff"
+		                    : "#22ffffff"
+
+		    Behavior on color {
+		        ColorAnimation { duration: 200 }
+		    }
+
+		    Row {
+		        anchors.fill: parent
+		        anchors.leftMargin: 18
+		        anchors.rightMargin: 6
+		        spacing: 4
+
+		        TextField {
+		            id: password
+			
+		            width: parent.width - loginButton.width - 8
+		            height: parent.height
+
+		            placeholderText: root.loginFailed
+		                             ? "Incorrect password"
+		                             : "Password"
+
+		            echoMode: root.showPassword
+		  ? TextInput.Normal
+		  : TextInput.Password
+		            color: "white"
+
+		            horizontalAlignment: TextInput.AlignHCenter
+		            verticalAlignment: TextInput.AlignVCenter
+
+		            font.pixelSize: 16
+
+		            background: Item {}
+
+		            enabled: !root.authenticating
+
+		            onAccepted: root.attemptLogin()
+
+		            onTextChanged: {
+	    if (root.loginFailed)
+		root.loginFailed = false
+	}
+		        }
+
+		        Rectangle {
+		            id: loginButton
+
+		            width: 38
+		            height: 38
+		            radius: 19
+
+		            anchors.verticalCenter: parent.verticalCenter
+
+		            color: "#007aff"
+
+		            opacity: password.text.length > 0 ? 1 : 0
+		            visible: opacity > 0
+
+		            Behavior on opacity {
+		                NumberAnimation { duration: 180 }
+		            }
+
+		            Text {
+		                anchors.centerIn: parent
+		                text: root.authenticating ? "•••" : "→"
+		                color: "white"
+		                font.pixelSize: root.authenticating ? 12 : 22
+		                font.weight: Font.Bold
+		            }
+
+		            MouseArea {
+		                anchors.fill: parent
+		                enabled: password.text.length > 0 &&
+		                         !root.authenticating
+		                cursorShape: Qt.PointingHandCursor
+		                onClicked: root.attemptLogin()
+		            }
+		        }
+		    }
+		}
+		        Row {
+		    anchors.horizontalCenter: parent.horizontalCenter
+		    spacing: 6
+
+		    visible: root.capsLockOn
+		    height: visible ? 20 : 0
+
+		    Text {
+		        text: "⇪"
+		        color: "#ffd60a"
+		        font.pixelSize: 13
+		        font.weight: Font.Bold
+		    }
+
+		    Text {
+		        text: "Caps Lock is on"
+		        color: "#ddffffff"
+		        font.pixelSize: 12
+		        font.weight: Font.DemiBold
+		    }
+		}
+
+		Text {
+		    anchors.horizontalCenter: parent.horizontalCenter
+
+		    text: root.loginFailed
+		          ? "Authentication failed"
+		          : "VERSION ∞"
+
+		    color: root.loginFailed ? "#ffff6b63" : "white"
+
+		    opacity: root.loginFailed ? 0.9 : 0.25
+		    font.pixelSize: root.loginFailed ? 12 : 10
+		    font.weight: Font.Bold
+		    font.letterSpacing: root.loginFailed ? 0 : 3
+		}
+	    }
+
+		Item {
+    id: userArea
+
+    anchors.left: parent.left
+    anchors.bottom: parent.bottom
+    anchors.leftMargin: 30
+    anchors.bottomMargin: 30
+
+    width: 240
+    height: userPopup.visible ? 260 : 42
+
+    visible: root.unlocked && userModel && userModel.rowCount() > 1
+    opacity: visible ? 1 : 0
+
+    property bool open: false
+
+    Behavior on opacity {
+        NumberAnimation { duration: 250 }
+    }
+
+    Rectangle {
+        id: userPill
+
+        width: 220
+        height: 42
+        radius: 21
+
+        color: userMouse.containsMouse ? "#50191919" : "#30191919"
+        border.width: 1
+        border.color: "#30ffffff"
+
+        Row {
+            anchors.fill: parent
+            anchors.leftMargin: 16
+            anchors.rightMargin: 14
+            spacing: 9
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "👤"
+                color: "white"
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 130
+
+                text: root.selectedRealName
+
+                color: "white"
+                font.pixelSize: 13
+                font.weight: Font.DemiBold
+                elide: Text.ElideRight
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: userArea.open ? "⌃" : "⌄"
+                color: "#bbffffff"
+            }
+        }
+
+        MouseArea {
+            id: userMouse
+            anchors.fill: parent
+            hoverEnabled: true
+
+            onClicked: userArea.open = !userArea.open
+        }
+    }
+
+    Rectangle {
+        id: userPopup
+
+        anchors.top: userPill.bottom
+        anchors.topMargin: 10
+
+        width: 230
+        height: Math.min(userModel.rowCount() * 48 + 16, 250)
+
+        visible: userArea.open
+        opacity: userArea.open ? 1 : 0
+
+        radius: 22
+
+        color: "#CC191919"
+        border.width: 1
+        border.color: "#35ffffff"
+
+        clip: true
+
+        Behavior on opacity {
+            NumberAnimation { duration: 160 }
+        }
+
+        ListView {
+            id: userList
+
+            anchors.fill: parent
+            anchors.margins: 8
+
+            model: userModel
+
+            currentIndex: root.selectedUserIndex
+
+            delegate: Rectangle {
+
+                required property int index
+
+                width: userList.width
+                height: 46
+                radius: 14
+
+                property bool selected:
+                    index === root.selectedUserIndex
+
+                color: selected
+                       ? "#35ffffff"
+                       : delegateMouse.containsMouse
+                         ? "#20ffffff"
+                         : "transparent"
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.leftMargin: 14
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    text: {
+                        var name = userModel.data(
+                            userModel.index(index,0),
+                            258
+                        )
+
+                        if (!name || name.length === 0)
+                            name = userModel.data(
+                                userModel.index(index,0),
+                                257
+                            )
+
+                        return name
+                    }
+
+                    color: "white"
+                    font.pixelSize: 13
+                }
+
+                Text {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 14
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    visible: selected
+
+                    text: "✓"
+                    color: "#5ac8fa"
+                }
+
+                MouseArea {
+                    id: delegateMouse
+
+                    anchors.fill: parent
+                    hoverEnabled: true
+
+                    onClicked: {
+
+                        root.selectedUserIndex = index
+
+                        password.clear()
+                        root.loginFailed = false
+                        password.forceActiveFocus()
+
+                        userArea.open = false
+                    }
+                }
+            }
+        }
+    }
+}
+
+	    
+	// ============================================================
+	// POWER CONTROLS
+	// ============================================================
+
+	Row {
+	    id: powerMenu
+
+	    anchors.bottom: parent.bottom
+	    anchors.bottomMargin: 28
+	    anchors.horizontalCenter: parent.horizontalCenter
+
+	    spacing: 40
+
+	    opacity: root.unlocked ? 1 : 0
+	    visible: opacity > 0 && !root.powerDialogOpen
+
+	    Behavior on opacity {
+		NumberAnimation { duration: 500 }
+	    }
+
+
+	    // ---------------- SLEEP ----------------
+
+	    Column {
+		spacing: 7
+
+		Rectangle {
+		    width: 48
+		    height: 48
+		    radius: 24
+
+		    anchors.horizontalCenter: parent.horizontalCenter
+
+		    color: sleepMouse.containsMouse
+		           ? "#35ffffff"
+		           : "#30191919"
+
+		    border.width: 1
+		    border.color: "#30ffffff"
+
+		    scale: sleepMouse.containsMouse ? 1.08 : 1.0
+
+		    Behavior on scale {
+		        NumberAnimation {
+		            duration: 160
+		            easing.type: Easing.OutCubic
+		        }
+		    }
+
+		    Text {
+		        anchors.centerIn: parent
+		        text: "☾"
+		        color: "white"
+		        font.pixelSize: 21
+		    }
+
+		    MouseArea {
+		        id: sleepMouse
+		        anchors.fill: parent
+
+		        hoverEnabled: true
+		        cursorShape: Qt.PointingHandCursor
+
+		        onClicked: {
+		            root.pendingPowerAction = "sleep"
+		            root.powerDialogOpen = true
+		        }
+		    }
+		}
+
+		Text {
+		    anchors.horizontalCenter: parent.horizontalCenter
+
+		    text: "SLEEP"
+		    color: "#bbffffff"
+
+		    font.pixelSize: 10
+		    font.weight: Font.Bold
+		    font.letterSpacing: 1
+		}
+	    }
+
+
+	    // ---------------- RESTART ----------------
+
+	    Column {
+		spacing: 7
+
+		Rectangle {
+		    width: 48
+		    height: 48
+		    radius: 24
+
+		    anchors.horizontalCenter: parent.horizontalCenter
+
+		    color: restartMouse.containsMouse
+		           ? "#35ffffff"
+		           : "#30191919"
+
+		    border.width: 1
+		    border.color: "#30ffffff"
+
+		    scale: restartMouse.containsMouse ? 1.08 : 1.0
+
+		    Behavior on scale {
+		        NumberAnimation {
+		            duration: 160
+		            easing.type: Easing.OutCubic
+		        }
+		    }
+
+		    Text {
+		        anchors.centerIn: parent
+
+		        text: "↻"
+		        color: "white"
+		        font.pixelSize: 23
+		    }
+
+		    MouseArea {
+		        id: restartMouse
+		        anchors.fill: parent
+
+		        hoverEnabled: true
+		        cursorShape: Qt.PointingHandCursor
+
+		        onClicked: {
+		            root.pendingPowerAction = "restart"
+		            root.powerDialogOpen = true
+		        }
+		    }
+		}
+
+		Text {
+		    anchors.horizontalCenter: parent.horizontalCenter
+
+		    text: "RESTART"
+		    color: "#bbffffff"
+
+		    font.pixelSize: 10
+		    font.weight: Font.Bold
+		    font.letterSpacing: 1
+		}
+	    }
+
+
+	    // ---------------- POWER ----------------
+
+	    Column {
+		spacing: 7
+
+		Rectangle {
+		    width: 48
+		    height: 48
+		    radius: 24
+
+		    anchors.horizontalCenter: parent.horizontalCenter
+
+		    color: powerMouse.containsMouse
+		           ? "#25ff453a"
+		           : "#30191919"
+
+		    border.width: 1
+		    border.color: "#88ff453a"
+
+		    scale: powerMouse.containsMouse ? 1.08 : 1.0
+
+		    Behavior on scale {
+		        NumberAnimation {
+		            duration: 160
+		            easing.type: Easing.OutCubic
+		        }
+		    }
+
+		    Text {
+		        anchors.centerIn: parent
+
+		        text: "⏻"
+		        color: "#ff453a"
+		        font.pixelSize: 21
+		    }
+
+		    MouseArea {
+		        id: powerMouse
+		        anchors.fill: parent
+
+		        hoverEnabled: true
+		        cursorShape: Qt.PointingHandCursor
+
+		        onClicked: {
+		            root.pendingPowerAction = "power"
+		            root.powerDialogOpen = true
+		        }
+		    }
+		}
+
+		Text {
+		    anchors.horizontalCenter: parent.horizontalCenter
+
+		    text: "POWER"
+		    color: "#bbffffff"
+
+		    font.pixelSize: 10
+		    font.weight: Font.Bold
+		    font.letterSpacing: 1
+		}
+	    }
+	}
+
+
+	// ============================================================
+	// POWER CONFIRMATION DIALOG
+	// IMPORTANT: This is OUTSIDE powerMenu Row
+	// ============================================================
+
+	Item {
+	    id: powerConfirmationDialog
+
+	    anchors.fill: parent
+	    z: 9999
+
+	    visible: root.powerDialogOpen
+	    opacity: root.powerDialogOpen ? 1 : 0
+
+	    Behavior on opacity {
+		NumberAnimation { duration: 160 }
+	    }
+
+
+	    // ---------------- BACKDROP ----------------
+
+	    Rectangle {
+		anchors.fill: parent
+		color: "#88000000"
+	    }
+
+
+	    // ---------------- DIALOG CARD ----------------
+
+	    Rectangle {
+		id: powerConfirmationCard
+
+		anchors.centerIn: parent
+
+		width: 420
+		height: 220
+		radius: 26
+
+		color: "#E61A1A1D"
+
+		border.width: 1
+		border.color: "#35ffffff"
+
+
+		Column {
+		    anchors.centerIn: parent
+		    spacing: 22
+
+
+		    // TITLE
+
+		    Text {
+		        anchors.horizontalCenter: parent.horizontalCenter
+
+		        text: {
+		            if (root.pendingPowerAction === "restart")
+		                return "Restart Amartya OS?"
+
+		            if (root.pendingPowerAction === "sleep")
+		                return "Put Amartya OS to sleep?"
+
+		            return "Shut down Amartya OS?"
+		        }
+
+		        color: "white"
+		        font.pixelSize: 22
+		        font.weight: Font.Bold
+		    }
+
+
+		    // DESCRIPTION
+
+		    Text {
+		        anchors.horizontalCenter: parent.horizontalCenter
+
+		        width: 330
+
+		        text: {
+		            if (root.pendingPowerAction === "restart")
+		                return "The computer will restart."
+
+		            if (root.pendingPowerAction === "sleep")
+		                return "The computer will enter sleep mode."
+
+		            return "The computer will shut down."
+		        }
+
+		        color: "#99ffffff"
+		        font.pixelSize: 13
+
+		        horizontalAlignment: Text.AlignHCenter
+		        wrapMode: Text.WordWrap
+		    }
+
+
+		    // BUTTONS
+
+		    Row {
+		        anchors.horizontalCenter: parent.horizontalCenter
+		        spacing: 14
+
+
+		        // ---------------- CANCEL ----------------
+
+		        Rectangle {
+		            width: 150
+		            height: 46
+		            radius: 23
+
+		            color: cancelPowerMouse.containsMouse
+		                   ? "#35ffffff"
+		                   : "#20ffffff"
+
+		            border.width: 1
+		            border.color: "#30ffffff"
+
+		            Text {
+		                anchors.centerIn: parent
+
+		                text: "Cancel"
+		                color: "white"
+
+		                font.pixelSize: 14
+		                font.weight: Font.DemiBold
+		            }
+
+		            MouseArea {
+		                id: cancelPowerMouse
+
+		                anchors.fill: parent
+
+		                hoverEnabled: true
+		                cursorShape: Qt.PointingHandCursor
+
+		                onClicked: {
+		                    root.powerDialogOpen = false
+		                    root.pendingPowerAction = ""
+		                }
+		            }
+		        }
+
+
+		        // ---------------- CONFIRM ----------------
+
+		        Rectangle {
+		            width: 150
+		            height: 46
+		            radius: 23
+
+		            color: confirmPowerMouse.containsMouse
+		                   ? "#ff6259"
+		                   : "#ff453a"
+
+		            Text {
+		                anchors.centerIn: parent
+
+		                text: {
+		                    if (root.pendingPowerAction === "restart")
+		                        return "Restart"
+
+		                    if (root.pendingPowerAction === "sleep")
+		                        return "Sleep"
+
+		                    return "Shut Down"
+		                }
+
+		                color: "white"
+
+		                font.pixelSize: 14
+		                font.weight: Font.Bold
+		            }
+
+		            MouseArea {
+		                id: confirmPowerMouse
+
+		                anchors.fill: parent
+
+		                hoverEnabled: true
+		                cursorShape: Qt.PointingHandCursor
+
+		                onClicked: {
+
+		                    var action = root.pendingPowerAction
+
+		                    // Close dialog first
+		                    root.powerDialogOpen = false
+		                    root.pendingPowerAction = ""
+
+		                    // Execute requested action
+		                    if (action === "sleep") {
+		                        sddm.suspend()
+		                    }
+		                    else if (action === "restart") {
+		                        sddm.reboot()
+		                    }
+		                    else if (action === "power") {
+		                        sddm.powerOff()
+		                    }
+		                }
+		            }
+		        }
+		    }
+		}
+	    }
+	}
+
+
+	// ============================================================
+	// SESSION SELECTOR
+	// ============================================================
+	    // ============================================================
+	    // SESSION SELECTOR
+	    // ============================================================
+
+	    Item {
+		id: sessionArea
+
+		anchors.top: parent.top
+		anchors.left: parent.left
+		anchors.topMargin: 30
+		anchors.leftMargin: 30
+
+		width: 230
+		height: sessionPopup.visible ? 300 : 42
+
+		opacity: root.unlocked ? 1 : 0
+		visible: opacity > 0
+
+		property bool open: false
+
+		Behavior on opacity {
+		    NumberAnimation { duration: 500 }
+		}
+
+		// Main session pill
+		Rectangle {
+		    id: sessionPill
+
+		    width: 210
+		    height: 42
+		    radius: 21
+
+		    color: sessionMouse.containsMouse
+		           ? "#50191919"
+		           : "#30191919"
+
+		    border.width: 1
+		    border.color: "#30ffffff"
+
+		    Row {
+		        anchors.fill: parent
+		        anchors.leftMargin: 16
+		        anchors.rightMargin: 14
+		        spacing: 9
+
+		        Text {
+		            anchors.verticalCenter: parent.verticalCenter
+		            text: "◈"
+		            color: "white"
+		            opacity: 0.85
+		            font.pixelSize: 15
+		        }
+
+		        Text {
+		            id: selectedSessionText
+
+		            anchors.verticalCenter: parent.verticalCenter
+
+		            width: 140
+
+		            text: {
+		                if (!sessionModel || sessionModel.rowCount() <= 0)
+		                    return "Desktop"
+
+		                var i = root.selectedSession
+
+		                if (i < 0 || i >= sessionModel.rowCount())
+		                    i = 0
+
+		                var n = sessionModel.data(
+		                            sessionModel.index(i, 0), 260)
+
+		                return n ? n : "Desktop"
+		            }
+
+		            color: "white"
+		            font.pixelSize: 13
+		            font.weight: Font.DemiBold
+
+		            elide: Text.ElideRight
+		        }
+
+		        Text {
+		            anchors.verticalCenter: parent.verticalCenter
+		            text: sessionArea.open ? "⌃" : "⌄"
+		            color: "#bbffffff"
+		            font.pixelSize: 14
+		        }
+		    }
+
+		    MouseArea {
+		        id: sessionMouse
+		        anchors.fill: parent
+
+		        hoverEnabled: true
+		        cursorShape: Qt.PointingHandCursor
+
+		        onClicked: sessionArea.open = !sessionArea.open
+		    }
+		}
+
+
+		// Session popup
+		Rectangle {
+		    id: sessionPopup
+
+		    anchors.top: sessionPill.bottom
+		    anchors.topMargin: 10
+
+		    width: 230
+
+		    height: {
+		        var count = sessionModel ? sessionModel.rowCount() : 0
+		        return Math.min(count * 48 + 16, 250)
+		    }
+
+		    radius: 22
+
+		    visible: sessionArea.open
+		    opacity: sessionArea.open ? 1 : 0
+
+		    color: "#CC191919"
+
+		    border.width: 1
+		    border.color: "#35ffffff"
+
+		    clip: true
+
+		    Behavior on opacity {
+		        NumberAnimation { duration: 160 }
+		    }
+
+		    ListView {
+		        id: sessionList
+
+		        anchors.fill: parent
+		        anchors.margins: 8
+
+		        clip: true
+		        spacing: 2
+
+		        model: sessionModel
+		        currentIndex: root.selectedSession
+
+		        delegate: Rectangle {
+		            required property int index
+
+		            width: sessionList.width
+		            height: 46
+		            radius: 14
+
+		            property bool selected:
+		                index === root.selectedSession
+
+		            color: selected
+		                   ? "#35ffffff"
+		                   : sessionDelegateMouse.containsMouse
+		                     ? "#20ffffff"
+		                     : "transparent"
+
+		            Text {
+		                anchors.left: parent.left
+		                anchors.leftMargin: 14
+		                anchors.verticalCenter: parent.verticalCenter
+
+		                width: parent.width - 45
+
+		                text: {
+		                    var n = sessionModel.data(
+		                                sessionModel.index(index, 0), 260)
+
+		                    return n ? n : "Session"
+		                }
+
+		                color: "white"
+		                font.pixelSize: 13
+		                font.weight: parent.selected
+		                             ? Font.Bold
+		                             : Font.Normal
+
+		                elide: Text.ElideRight
+		            }
+
+		            Text {
+		                anchors.right: parent.right
+		                anchors.rightMargin: 14
+		                anchors.verticalCenter: parent.verticalCenter
+
+		                visible: parent.selected
+
+		                text: "✓"
+		                color: "#5ac8fa"
+		                font.pixelSize: 14
+		                font.weight: Font.Bold
+		            }
+
+		            MouseArea {
+		                id: sessionDelegateMouse
+		                anchors.fill: parent
+
+		                hoverEnabled: true
+		                cursorShape: Qt.PointingHandCursor
+
+		                onClicked: {
+		                    root.selectedSession = index
+		                    sessionList.currentIndex = index
+		                    sessionArea.open = false
+		                }
+		            }
+		        }
+		    }
+		}
+	    }
+	    // ============================================================
+	    
+	    // ============================================================
+	    // CLOCK
+	    // ============================================================
+
+	    Timer {
+		interval: 1000
+		running: true
+		repeat: true
+
+		triggeredOnStart: true
+
+		onTriggered: {
+		    var now = new Date()
+
+		    lockTime.text =
+		        Qt.formatTime(now, "HH:mm")
+
+		    lockDate.text =
+		        Qt.formatDate(now, "dddd, MMMM d")
+		}
+	    }
+	    
+
+	    // ============================================================
+	    // SDDM AUTH RESULT
+	    // ============================================================
+
+	    Connections {
+	    target: sddm
+
+	    function onLoginFailed() {
+		root.authenticating = false
+		root.loginFailed = true
+
+		password.clear()
+		password.forceActiveFocus()
+
+		if (passwordShake.running)
+		    passwordShake.stop()
+
+		passwordShake.start()
+	    }
+	}
+}

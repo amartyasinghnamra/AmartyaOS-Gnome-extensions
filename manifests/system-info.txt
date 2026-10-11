@@ -1,0 +1,72 @@
+Backup date: 2026-10-11T13:50:37+05:30
+Operating system:
+PRETTY_NAME="AMARTYA OS"
+NAME="AMARTYA OS"
+VERSION_ID="26.04"
+VERSION="26.04.1 LTS (Resolute Raccoon)"
+VERSION_CODENAME=resolute
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+UBUNTU_CODENAME=resolute
+LOGO=amartya-logo
+
+GNOME Shell version:
+GNOME Shell 50.1
+
+Enabled extension UUIDs:
+user-theme@gnome-shell-extensions.gcampax.github.com
+places-menu@gnome-shell-extensions.gcampax.github.com
+vertical-workspaces@G-dH.github.com
+tilingshell@ferrarodomenico.com
+all-in-one-clipboard@NiffirgkcaJ.github.com
+burn-my-windows@schneegans.github.com
+caffeine@patapon.info
+vscode-recent-folders@amgad
+gnome-compact-top-bar@metehan-arslan.github.io
+gnome-shell-cast@oxygenws.com
+switchWorkSpace@sun.wxg@gmail.com
+lockscreen-studio@pedro.projects
+systemHUD@LalaloyXyz
+volume-percentage-quick-settings@imdarktom
+preserve-battery-qt@laurento.frittella
+transparent-top-bar@zhanghai.me
+appindicatorsupport@rgcjonas.gmail.com
+batterytimepercentagecompact@sagrland.de
+Rounded_Corners@lennart-k
+rounded-windows@marcosgt.github.io
+gtk4-ding@smedius.gitlab.com
+fq@megh
+AutoColor-top-Bar@baitsart.github.com
+command-menu2@goldentree1.github.com
+dynamic-calendar-and-clocks-icons-reborn@thecalamityjoe87.github.com
+smart-pause-resume@erenseymen.github.io
+touchup@mityax
+touch-board@d3z-the-dev.github.io
+glocalsend@donnybeelo.github.com
+nowplay@LalaloyXyz
+idle-shame@siddharth
+bluetooth-quick-connect@bjarosze.gmail.com
+gsconnect@andyholmes.github.io
+windowIsReady_Remover@nunofarruca@gmail.com
+context-window-title@erikis.github.io
+pinned-apps-in-appgrid@brunosilva.io
+dash-to-panel@jderose9.github.com
+appgrid-uninstall@i-soumya18.github.io
+shutdown-dialogue@subashghimire.info.np
+omnipanel@christian
+touchpad-gesture-customization@coooolapps.com
+fullscreen-hot-corner@sorrow.about.alice.pm.me
+custom-hot-corners-extended@G-dH.github.com
+snaptext@cwittenberg
+color-picker@tuberry
+topbar-all-monitors@fa8i.github.io
+dict@sun.wxg@gmail.com
+snapd-prompting@canonical.com
+snapd-search-provider@canonical.com
+ubuntu-appindicators@ubuntu.com
+web-search-provider@ubuntu.com
+hide-system-icons@shichen35.github.io

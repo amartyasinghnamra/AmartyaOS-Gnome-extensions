@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+    <requires lib="gtk" version="4.0" />
+    <requires lib="libadwaita" version="1.0" />
+
+    <object class="GtkStringList" id="pinch_gestures_model">
+        <items>
+            <item translatable="yes">None</item>
+            <item translatable="yes">Show Desktop</item>
+            <item translatable="yes">Open/Close Window</item>
+            <item translatable="yes">Open/Close Tab (Ctrl + W)</item>
+            <item translatable="yes">Show notification list</item>
+            <item translatable="yes">Volume Control</item>
+            <item translatable="yes">Keyboard Backlight Control</item>
+        </items>
+    </object>
+
+     <object class="GtkStringList" id="vertical_swipe_gestures_model">
+        <items>
+            <item translatable="yes">None</item>
+            <item translatable="yes">Overview Navigation</item>
+            <item translatable="yes">Workspace Switching</item>
+            <item translatable="yes">Window Switching</item>
+            <item translatable="yes">Volume Control</item>
+            <item translatable="yes">Brightness Control</item>
+            <item translatable="yes">Window Manipulation</item>
+            <item translatable="yes">Media Control</item>
+        </items>
+    </object>
+
+    <object class="GtkStringList" id="horizontal_swipe_gestures_model">
+        <items>
+            <item translatable="yes">None</item>
+            <item translatable="yes">Overview Navigation</item>
+            <item translatable="yes">Workspace Switching</item>
+            <item translatable="yes">Window Switching</item>
+            <item translatable="yes">Volume Control</item>
+            <item translatable="yes">Brightness Control</item>
+            <item translatable="yes">Media Control</item>
+        </items>
+    </object>
+
+    <object class="AdwPreferencesPage" id="gestures_page">
+        <property name="title">System Gestures</property>
+        <property name="icon-name">gesture-swipe-right-symbolic</property>
+
+        <!-- 3-fingers Swipe Gestures -->
+        <child>
+            <object class="AdwPreferencesGroup">
+                <property name="title">3-Fingers Swipe Gestures</property>
+
+                <!-- Vertical -->
+                <child>
+                    <object class="AdwComboRow" id="vertical-swipe-3-fingers-gesture">
+                        <property name="title" translatable="yes">3-fingers vertical swipe gesture</property>
+                        <property name="model">vertical_swipe_gestures_model</property>
+                    </object>
+                </child>
+
+                <!-- Horizontal -->
+                <child>
+                    <object class="AdwComboRow" id="horizontal-swipe-3-fingers-gesture">
+                        <property name="title" translatable="yes">3-fingers horizontal swipe gesture</property>
+                        <property name="model">horizontal_swipe_gestures_model</property>
+                    </object>
+                </child>
+
+            </object>
+        </child>
+
+        <!-- 4-fingers Swipe Gestures -->
+        <child>
+            <object class="AdwPreferencesGroup">
+                <property name="title">4-Fingers Swipe Gestures</property>
+
+                <!-- Vertical -->
+                <child>
+                    <object class="AdwComboRow" id="vertical-swipe-4-fingers-gesture">
+                        <property name="title" translatable="yes">4-fingers vertical swipe gesture</property>
+                        <property name="model">vertical_swipe_gestures_model</property>
+                    </object>
+                </child>
+
+                <!-- Horizontal -->
+                <child>
+                    <object class="AdwComboRow" id="horizontal-swipe-4-fingers-gesture">
+                        <property name="title" translatable="yes">4-fingers horizontal swipe gesture</property>
+                        <property name="model">horizontal_swipe_gestures_model</property>
+                    </object>
+                </child>
+
+            </object>
+        </child>
+
+        <!-- Pinch Gestures -->
+        <child>
+            <object class="AdwPreferencesGroup">
+                <property name="title">Pinch Gestures</property>
+
+                <!-- 3 finger pinch gesture -->
+                <child>
+                    <object class="AdwComboRow" id="pinch-3-finger-gesture">
+                        <property name="title" translatable="yes">3-fingers pinch gesture</property>
+                        <property name="model">pinch_gestures_model</property>
+                    </object>
+                </child>
+
+                <!-- 4 finger pinch gesture -->
+                <child>
+                    <object class="AdwComboRow" id="pinch-4-finger-gesture">
+                        <property name="title" translatable="yes">4-fingers pinch gesture</property>
+                        <property name="model">pinch_gestures_model</property>
+                    </object>
+                </child>
+            </object>
+        </child>
+    </object>
+</interface>

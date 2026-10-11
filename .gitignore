@@ -1,0 +1,21 @@
+# Private settings exports
+settings/*.dconf
+settings/*dconf*
+settings/*settings-audit*
+
+# Machine-specific and potentially sensitive audit reports
+manifests/asset-audit.txt
+manifests/extension-asset-references.txt
+manifests/gnome-asset-settings-audit.txt
+
+# Temporary and editor files
+*.tmp
+*.bak~
+*~
+.DS_Store
+
+# Generated dependency report may contain machine-specific paths
+manifests/dependency-audit.txt
+
+# Historical backup files
+*.bak

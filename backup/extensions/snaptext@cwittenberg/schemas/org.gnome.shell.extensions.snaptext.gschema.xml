@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.snaptext" path="/org/gnome/shell/extensions/snaptext/">
+    <key name="show-notification" type="b">
+      <default>true</default>
+      <summary>Show notification</summary>
+      <description>Show a notification with the extracted text when successful.</description>
+    </key>
+    <key name="keep-history" type="b">
+      <default>true</default>
+      <summary>Keep extraction history</summary>
+      <description>Keep a history of up to 15 recent text extractions.</description>
+    </key>
+    <key name="history-list" type="as">
+      <default>[]</default>
+      <summary>History list</summary>
+      <description>Array of recently extracted text strings.</description>
+    </key>
+    <key name="show-tray-icon" type="b">
+      <default>true</default>
+      <summary>Show tray icon</summary>
+      <description>Show the extension icon in the system tray.</description>
+    </key>
+    <key name="enable-shortcut" type="b">
+      <default>false</default>
+      <summary>Enable shortcut</summary>
+      <description>Enable keyboard shortcut to trigger snap text extraction.</description>
+    </key>
+    <key name="shortcut-trigger" type="as">
+      <default>[]</default>
+      <summary>Trigger shortcut</summary>
+      <description>Keyboard shortcut to trigger snap text extraction.</description>
+    </key>
+    <key name="click-to-smart-snap" type="b">
+      <default>true</default>
+      <summary>Click to Smart Snap</summary>
+      <description>Instantly extract text at the pointer location with a single click instead of dragging.</description>
+    </key>
+    <key name="enable-smart-click" type="b">
+      <default>true</default>
+      <summary>Enable Smart OCR Pointer</summary>
+      <description>Use a keyboard shortcut to instantly extract and parse text exactly where your mouse is pointing.</description>
+    </key>
+    <key name="smart-shortcut-trigger" type="as">
+      <default>[]</default>
+      <summary>Smart Pointer Shortcut</summary>
+      <description>Keyboard shortcut to trigger background extraction at pointer location.</description>
+    </key>
+    <key name="translate-text" type="b">
+      <default>false</default>
+      <summary>Translate text</summary>
+      <description>Automatically translate extracted text using Google Translate.</description>
+    </key>
+    <key name="translate-target" type="s">
+      <default>''</default>
+      <summary>Target language</summary>
+      <description>Target language code for translation (empty for system default).</description>
+    </key>
+    <key name="qr-auto-open" type="b">
+      <default>true</default>
+      <summary>Auto-open QR URLs</summary>
+      <description>Automatically launch HTTP/HTTPS URLs detected via QR code.</description>
+    </key>
+    <key name="enable-debug" type="b">
+      <default>false</default>
+      <summary>Enable debug logging</summary>
+      <description>Outputs detailed debug information to the system journal.</description>
+    </key>
+  </schema>
+</schemalist>

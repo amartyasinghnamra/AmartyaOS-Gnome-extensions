@@ -1,0 +1,10 @@
+[SddmGreeterTheme]
+Name=Amartya OS
+Description=Amartya OS native Qt6 greeter
+Author=Amartya Singh Namra
+Type=sddm-theme
+Version=1.0
+MainScript=Main.qml
+Theme-Id=amartya-os
+Theme-API=2.0
+QtVersion=6

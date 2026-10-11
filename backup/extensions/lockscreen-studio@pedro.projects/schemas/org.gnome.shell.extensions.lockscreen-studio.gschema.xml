@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.lockscreen-studio" path="/org/gnome/shell/extensions/lockscreen-studio/">
+    
+    <!-- Background Blur settings -->
+    <key name="enable-blur" type="b">
+      <default>true</default>
+      <summary>Enable lock screen background blur</summary>
+      <description>Whether to blur the lock screen background.</description>
+    </key>
+    <key name="blur-radius" type="i">
+      <default>30</default>
+      <range min="0" max="100"/>
+      <summary>Blur radius</summary>
+      <description>The radius of the lock screen background blur.</description>
+    </key>
+    <key name="enable-brightness" type="b">
+      <default>true</default>
+      <summary>Enable lock screen background brightness overlay</summary>
+      <description>Whether to apply a brightness adjustment/overlay on the lock screen background.</description>
+    </key>
+    <key name="blur-brightness" type="d">
+      <default>0.6</default>
+      <range min="0.0" max="1.0"/>
+      <summary>Blur brightness</summary>
+      <description>The brightness of the lock screen background (0.0 is black, 1.0 is full brightness).</description>
+    </key>
+
+    <!-- Clock / Time Display settings -->
+    <key name="clock-visible" type="b">
+      <default>true</default>
+      <summary>Show clock</summary>
+      <description>Toggle the visibility of the lockscreen clock.</description>
+    </key>
+    <key name="clock-style" type="s">
+      <default>'default'</default>
+      <summary>Clock style</summary>
+      <description>The layout style of the lockscreen clock ('default', 'separated-colors', 'vertical-stack', 'analog').</description>
+    </key>
+    <key name="clock-minutes-color" type="s">
+      <default>'#bbbbbb'</default>
+      <summary>Minutes or secondary clock color</summary>
+      <description>Hex color for minutes label or minutes hand.</description>
+    </key>
+    <key name="clock-separator-color" type="s">
+      <default>'#777777'</default>
+      <summary>Separator or ticks color</summary>
+      <description>Hex color for the clock separator or ticks.</description>
+    </key>
+    <key name="analog-clock-skin" type="s">
+      <default>'minimalist'</default>
+      <summary>Analog clock skin style</summary>
+      <description>Style of the analog clock skin ('minimalist', 'classic', 'accent').</description>
+    </key>
+    <key name="clock-second-hand-enabled" type="b">
+      <default>true</default>
+      <summary>Enable second hand</summary>
+      <description>Whether to show the second hand on the analog clock.</description>
+    </key>
+    <key name="clock-second-hand-color" type="s">
+      <default>'#ff4444'</default>
+      <summary>Second hand color</summary>
+      <description>Hex color for the analog clock's second hand.</description>
+    </key>
+    <key name="analog-clock-show-numbers" type="b">
+      <default>true</default>
+      <summary>Show numbers on analog clock</summary>
+      <description>Whether to show hour numbers (1-12) on the analog clock face.</description>
+    </key>
+    <key name="analog-clock-size" type="i">
+      <default>200</default>
+      <range min="80" max="400"/>
+      <summary>Analog clock size</summary>
+      <description>Diameter of the analog clock in pixels.</description>
+    </key>
+    <key name="analog-clock-numbers-color" type="s">
+      <default>'#ffffff'</default>
+      <summary>Analog clock numbers color</summary>
+      <description>Hex color for the hour numbers (1-12) on the analog clock face.</description>
+    </key>
+    <key name="clock-font-size" type="i">
+      <default>80</default>
+      <range min="10" max="300"/>
+      <summary>Clock font size</summary>
+      <description>Font size of the lockscreen clock in pixels.</description>
+    </key>
+    <key name="clock-font-family" type="s">
+      <default>'Sans'</default>
+      <summary>Clock font family</summary>
+      <description>Font family name of the lockscreen clock.</description>
+    </key>
+    <key name="clock-color" type="s">
+      <default>'#ffffff'</default>
+      <summary>Clock color</summary>
+      <description>Hex color of the lockscreen clock (e.g. #ffffff).</description>
+    </key>
+
+    <!-- Date Display settings -->
+    <key name="date-visible" type="b">
+      <default>true</default>
+      <summary>Show date</summary>
+      <description>Toggle the visibility of the lockscreen date.</description>
+    </key>
+    <key name="date-font-size" type="i">
+      <default>24</default>
+      <range min="10" max="100"/>
+      <summary>Date font size</summary>
+      <description>Font size of the lockscreen date in pixels.</description>
+    </key>
+    <key name="date-font-family" type="s">
+      <default>'Sans'</default>
+      <summary>Date font family</summary>
+      <description>Font family name of the lockscreen date.</description>
+    </key>
+    <key name="date-color" type="s">
+      <default>'#ffffff'</default>
+      <summary>Date color</summary>
+      <description>Hex color of the lockscreen date.</description>
+    </key>
+
+    <!-- Custom Text/Message settings -->
+    <key name="custom-text-enabled" type="b">
+      <default>false</default>
+      <summary>Enable custom text</summary>
+      <description>Toggle visibility of a custom screen message.</description>
+    </key>
+    <key name="custom-text" type="s">
+      <default>'Welcome to Lockscreen Studio'</default>
+      <summary>Custom text content</summary>
+      <description>The message to display on the lock screen.</description>
+    </key>
+    <key name="custom-text-font-size" type="i">
+      <default>20</default>
+      <range min="10" max="100"/>
+      <summary>Custom text font size</summary>
+      <description>Font size of the custom message.</description>
+    </key>
+    <key name="custom-text-font-family" type="s">
+      <default>'Sans'</default>
+      <summary>Custom text font family</summary>
+      <description>Font family of the custom message.</description>
+    </key>
+    <key name="custom-text-color" type="s">
+      <default>'#ffffff'</default>
+      <summary>Custom text color</summary>
+      <description>Hex color of the custom message.</description>
+    </key>
+  </schema>
+</schemalist>

@@ -1,0 +1,2 @@
+source	path	exists	package_owner	classification
+settings	/usr/share/amartya-os/branding/no-text-logo.png	yes	not-package-owned-or-unknown	custom-system-asset

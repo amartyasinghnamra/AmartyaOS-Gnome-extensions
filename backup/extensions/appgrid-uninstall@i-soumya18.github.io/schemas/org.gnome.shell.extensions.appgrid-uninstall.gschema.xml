@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.appgrid-uninstall"
+          path="/org/gnome/shell/extensions/appgrid-uninstall/">
+
+    <key name="show-confirmation-dialog" type="b">
+      <default>true</default>
+      <summary>Show confirmation dialog before uninstalling</summary>
+      <description>
+        When enabled, a dialog will ask for confirmation before
+        removing any application.
+      </description>
+    </key>
+
+    <key name="show-package-type-in-dialog" type="b">
+      <default>true</default>
+      <summary>Show package type in confirmation dialog</summary>
+    </key>
+
+    <key name="enable-for-flatpak" type="b">
+      <default>true</default>
+      <summary>Enable uninstall option for Flatpak apps</summary>
+    </key>
+
+    <key name="enable-for-snap" type="b">
+      <default>true</default>
+      <summary>Enable uninstall option for Snap apps</summary>
+    </key>
+
+    <key name="enable-for-apt" type="b">
+      <default>true</default>
+      <summary>Enable uninstall option for APT/dpkg apps</summary>
+    </key>
+
+    <key name="notify-on-success" type="b">
+      <default>true</default>
+      <summary>Show notification on successful uninstall</summary>
+    </key>
+
+    <key name="blocked-apps" type="as">
+      <default>[]</default>
+      <summary>Additional app IDs the user has manually protected</summary>
+    </key>
+
+  </schema>
+</schemalist>

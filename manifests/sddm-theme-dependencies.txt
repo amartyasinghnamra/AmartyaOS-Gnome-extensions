@@ -1,0 +1,28 @@
+# Amartya OS SDDM theme
+# Theme ID: amartya-os
+# Active configuration: /etc/sddm.conf.d/10-amartya-os.conf
+
+[required-packages]
+sddm
+qml6-module-qtquick
+qml6-module-qtquick-controls
+qml6-module-qtquick-effects
+
+[provided-by-sddm]
+# Supplied by the sddm package; not a separate package.
+SddmComponents
+
+[active-theme-files]
+/usr/share/sddm/themes/amartya-os/Main.qml
+/usr/share/sddm/themes/amartya-os/metadata.desktop
+/usr/share/sddm/themes/amartya-os/assets/SDDM.png
+
+[configuration]
+/etc/sddm.conf.d/10-amartya-os.conf
+
+[notes]
+- Qt/QML package names may differ across distributions.
+- Verify package availability before installing on another system.
+- SddmComponents is supplied by the SDDM installation.
+- User avatars are selected dynamically by the active QML.
+- Historical and corrupted QML files are archived, not restored by default.

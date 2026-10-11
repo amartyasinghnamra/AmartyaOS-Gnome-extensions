@@ -1,0 +1,112 @@
+<schemalist gettext-domain="gnome-shell-extensions">
+  <schema id="org.gnome.shell.extensions.dict" path="/org/gnome/shell/extensions/dict/">
+    <key name="hotkey" type="as">
+      <default><![CDATA[['<Control><Alt>j']]]></default>
+      <summary>Key to trigger on and off</summary>
+      <description>
+      </description>
+    </key>
+    <key name="hotkey-popup-window" type="as">
+      <default><![CDATA[['<Control><Alt>o']]]></default>
+      <summary>Key to show popup window</summary>
+      <description>
+      </description>
+    </key>
+    <key name="trigger-state" type="b">
+      <default>true</default>
+      <summary>Function is on or off</summary>
+      <description>
+      </description>
+    </key>
+    <key name="top-icon" type="b">
+      <default>true</default>
+      <summary>Show top icon</summary>
+      <description>
+      </description>
+    </key>
+    <key name="enable-translate-shell" type="b">
+      <default>false</default>
+      <summary>Use translate-shell</summary>
+      <description>
+      </description>
+    </key>
+    <key name="enable-hover" type="b">
+      <default>false</default>
+      <summary>hover flag to translate</summary>
+      <description>
+      </description>
+    </key>
+    <key name="language" type="s">
+      <default>"auto"</default>
+      <summary>target language</summary>
+      <description>
+      </description>
+    </key>
+    <key name="window-width" type="i">
+      <default>500</default>
+      <summary>Window width</summary>
+      <description>
+      </description>
+    </key>
+    <key name="window-height" type="i">
+      <default>600</default>
+      <summary>Window height</summary>
+      <description>
+      </description>
+    </key>
+    <key name="address-list" type="as">
+      <default>[]</default>
+      <summary>Address list</summary>
+      <description>
+      </description>
+    </key>
+    <key name="address-active" type="s">
+      <default>"https://translate.google.com/#view=home&amp;op=translate&amp;sl=auto&amp;tl=auto&amp;text=%WORD"</default>
+      <summary>Active address</summary>
+      <description>
+      </description>
+    </key>
+    <key name="enable-web" type="b">
+      <default>true</default>
+      <summary>Enable web translate</summary>
+      <description>
+      </description>
+    </key>
+    <key name="enable-mdict" type="b">
+      <default>false</default>
+      <summary>Enable local Mdict</summary>
+      <description>
+      </description>
+    </key>
+    <key name="mobile-agent" type="b">
+      <default>true</default>
+      <summary>Use mobile agent</summary>
+      <description>
+      </description>
+    </key>
+    <key name="enable-javascript" type="b">
+      <default>true</default>
+      <summary>Enable javascript</summary>
+      <description>
+      </description>
+    </key>
+    <key name="enable-media" type="b">
+      <default>true</default>
+      <summary>Enable media</summary>
+      <description>
+      </description>
+    </key>
+    <key name="load-image" type="b">
+      <default>true</default>
+      <summary>Load image</summary>
+      <description>
+      </description>
+    </key>
+    <key name="window-follow-pointer" type="b">
+      <default>true</default>
+      <summary>Popup window follow pointer</summary>
+      <description>
+      </description>
+    </key>
+  </schema>
+</schemalist>

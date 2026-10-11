@@ -1,0 +1,1012 @@
+// omnipanel/zone_designer.js
+import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
+import St from 'gi://St';
+import Clutter from 'gi://Clutter';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import { hexToRgba, getLayoutColors } from './layout_definitions.js';
+import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
+
+const TOPBAR_HEIGHT = 50; 
+const BUTTON_PADDING = '2px 4px'; 
+const ENTRY_PADDING = '2px'; 
+const QUIT_BUTTON_HEIGHT = 25; 
+
+class DesignerState {
+    onMotion() { return Clutter.EVENT_PROPAGATE; }
+    onRelease() { return Clutter.EVENT_PROPAGATE; }
+}
+
+class IdleState extends DesignerState {}
+
+class DrawState extends DesignerState {
+    constructor(startX, startY) {
+        super();
+        this.startX = startX;
+        this.startY = startY;
+    }
+
+    onMotion(designer, x, y) {
+        let rawW = Math.abs(x - this.startX);
+        let rawH = Math.abs(y - this.startY);
+        let showWarning = false;
+        
+        if (rawW < 450 || rawH < 400) {
+            showWarning = true;
+        }
+        
+        let rectW = Math.max(450, rawW);
+        let rectH = Math.max(400, rawH);
+        
+        let rectX = x < this.startX ? this.startX - rectW : this.startX;
+        let rectY = y < this.startY ? this.startY - rectH : this.startY;
+        
+        rectX = Math.max(0, Math.min(rectX, global.stage.width - rectW));
+        rectY = Math.max(TOPBAR_HEIGHT, Math.min(rectY, global.stage.height - rectH));
+
+        designer._selection.set_position(rectX, rectY);
+        designer._selection.set_size(rectW, rectH);
+
+        if (showWarning) {
+            designer._warningLabel.set_position(x + 15, y + 15);
+            if (!designer._warningLabel.visible) designer._warningLabel.show();
+        } else {
+            if (designer._warningLabel.visible) designer._warningLabel.hide();
+        }
+        
+        return Clutter.EVENT_STOP;
+    }
+
+    onRelease(designer) {
+        if (designer._warningLabel && designer._warningLabel.visible) {
+            designer._warningLabel.hide();
+        }
+
+        let sW = Math.max(450, designer._selection.width);
+        let sH = Math.max(400, designer._selection.height);
+        let sX = designer._selection.x;
+        let sY = designer._selection.y;
+        let panelH = Main.panel.height;
+
+        if (sX + sW > global.stage.width) sX = global.stage.width - sW;
+        if (sY + sH > global.stage.height) sY = global.stage.height - sH;
+
+        let snapX = sX, snapY = sY, snapR = sX + sW, snapB = sY + sH;
+        let scale = St.ThemeContext.get_for_stage(global.stage).scale_factor || 1;
+        let snapTolerance = 30 * scale;
+
+        for (let mon of designer._monitors) {
+            if (Math.abs(snapX - mon.x) < snapTolerance) snapX = mon.x;
+            if (Math.abs(snapY - (mon.y + panelH)) < snapTolerance) snapY = mon.y + panelH;
+            if (Math.abs(snapR - (mon.x + mon.width)) < snapTolerance) snapR = mon.x + mon.width;
+            if (Math.abs(snapB - (mon.y + mon.height)) < snapTolerance) snapB = mon.y + mon.height;
+        }
+
+        sX = snapX;
+        sY = snapY;
+        sW = snapR - sX;
+        sH = snapB - sY;
+        
+        designer._selection.set_position(sX, sY);
+        designer._selection.set_size(sW, sH);
+        designer._lastRect = { x: sX, y: sY, width: sW, height: sH };
+
+        let px = sX;
+        let py = sY + sH + 10;
+        
+        let currMon = designer._monitors[designer._currentDrawMonitorIndex];
+        if (py + 60 > currMon.y + currMon.height) py = sY - 60; 
+        if (px + 360 > currMon.x + currMon.width) px = currMon.x + currMon.width - 360; 
+
+        if (designer._entry) designer._entry.set_text('');
+        designer._promptBox.set_position(px, py);
+        designer._promptBox.show();
+        if (designer._entry) designer._entry.grab_key_focus();
+
+        designer.transitionTo(new IdleState());
+        return Clutter.EVENT_STOP;
+    }
+}
+
+class MoveState extends DesignerState {
+    constructor(zoneName, offsetX, offsetY, monitorIndex) {
+        super();
+        this.zoneName = zoneName;
+        this.offsetX = offsetX;
+        this.offsetY = offsetY;
+        this.monitorIndex = monitorIndex;
+    }
+
+    onMotion(designer, x, y) {
+        let zoneBox = designer._zoneWidgets[this.zoneName];
+        if (zoneBox) {
+            let newX = x - this.offsetX;
+            let newY = y - this.offsetY;
+            
+            newX = Math.max(0, Math.min(newX, global.stage.width - zoneBox.width));
+            newY = Math.max(0, Math.min(newY, global.stage.height - zoneBox.height));
+            
+            zoneBox.set_position(newX, newY);
+        }
+        return Clutter.EVENT_STOP;
+    }
+
+    onRelease(designer) {
+        let zoneBox = designer._zoneWidgets[this.zoneName];
+        if (zoneBox) {
+            let targetMonitorIndex = this.monitorIndex;
+            let bxX = zoneBox.x;
+            let bxY = zoneBox.y;
+            let bxW = zoneBox.width;
+            let bxH = zoneBox.height;
+            
+            let cx = bxX + bxW / 2;
+            let cy = bxY + bxH / 2;
+            
+            let foundIndex = designer._monitors.findIndex(mon => 
+                cx >= mon.x && cx < mon.x + mon.width && cy >= mon.y && cy < mon.y + mon.height
+            );
+            
+            if (foundIndex !== -1) {
+                targetMonitorIndex = foundIndex;
+            }
+
+            let panelH = Main.panel.height;
+            let snapBxX = bxX, snapBxY = bxY, snapBxR = bxX + bxW, snapBxB = bxY + bxH;
+            
+            let scale = St.ThemeContext.get_for_stage(global.stage).scale_factor || 1;
+            let snapTolerance = 30 * scale;
+
+            for (let mon of designer._monitors) {
+                if (Math.abs(snapBxX - mon.x) < snapTolerance) snapBxX = mon.x;
+                if (Math.abs(snapBxY - (mon.y + panelH)) < snapTolerance) snapBxY = mon.y + panelH;
+                if (Math.abs(snapBxR - (mon.x + mon.width)) < snapTolerance) snapBxR = mon.x + mon.width;
+                if (Math.abs(snapBxB - (mon.y + mon.height)) < snapTolerance) snapBxB = mon.y + mon.height;
+            }
+            
+            bxX = snapBxX;
+            bxY = snapBxY;
+            bxW = snapBxR - bxX;
+            bxH = snapBxB - bxY;
+
+            designer._manager.storage.saveCustomZoneRect(
+                this.zoneName,
+                { x: bxX, y: bxY, width: bxW, height: bxH },
+                targetMonitorIndex
+            );
+            designer._zonesModified = true;
+            designer._refreshZones(); 
+        }
+
+        designer.transitionTo(new IdleState());
+        return Clutter.EVENT_STOP;
+    }
+}
+
+class ResizeState extends DesignerState {
+    constructor(zoneName, monitorIndex) {
+        super();
+        this.zoneName = zoneName;
+        this.monitorIndex = monitorIndex;
+    }
+
+    onMotion(designer, x, y) {
+        let zoneBox = designer._zoneWidgets[this.zoneName];
+        if (zoneBox) {
+            let rawW = x - zoneBox.x;
+            let rawH = y - zoneBox.y;
+            let showWarning = false;
+            
+            if (rawW < 450 || rawH < 400) {
+                showWarning = true;
+            }
+            
+            let newW = Math.max(450, rawW);
+            let newH = Math.max(400, rawH);
+            
+            newW = Math.min(newW, global.stage.width - zoneBox.x);
+            newH = Math.min(newH, global.stage.height - zoneBox.y);
+            
+            zoneBox.set_size(newW, newH);
+
+            if (showWarning) {
+                designer._warningLabel.set_position(x + 15, y + 15);
+                if (!designer._warningLabel.visible) designer._warningLabel.show();
+            } else {
+                if (designer._warningLabel.visible) designer._warningLabel.hide();
+            }
+        }
+        return Clutter.EVENT_STOP;
+    }
+
+    onRelease(designer) {
+        if (designer._warningLabel && designer._warningLabel.visible) {
+            designer._warningLabel.hide();
+        }
+
+        let zoneBox = designer._zoneWidgets[this.zoneName];
+        if (zoneBox) {
+            let bxX = zoneBox.x;
+            let bxY = zoneBox.y;
+            let bxW = zoneBox.width;
+            let bxH = zoneBox.height;
+
+            let panelH = Main.panel.height;
+            let snapBxX = bxX, snapBxY = bxY, snapBxR = bxX + bxW, snapBxB = bxY + bxH;
+            
+            let scale = St.ThemeContext.get_for_stage(global.stage).scale_factor || 1;
+            let snapTolerance = 30 * scale;
+
+            for (let mon of designer._monitors) {
+                if (Math.abs(snapBxX - mon.x) < snapTolerance) snapBxX = mon.x;
+                if (Math.abs(snapBxY - (mon.y + panelH)) < snapTolerance) snapBxY = mon.y + panelH;
+                if (Math.abs(snapBxR - (mon.x + mon.width)) < snapTolerance) snapBxR = mon.x + mon.width;
+                if (Math.abs(snapBxB - (mon.y + mon.height)) < snapTolerance) snapBxB = mon.y + mon.height;
+            }
+
+            bxW = snapBxR - snapBxX;
+            bxH = snapBxB - snapBxY;
+
+            designer._manager.storage.saveCustomZoneRect(
+                this.zoneName,
+                { x: snapBxX, y: snapBxY, width: bxW, height: bxH },
+                this.monitorIndex
+            );
+            designer._zonesModified = true;
+            designer._refreshZones();
+        }
+
+        designer.transitionTo(new IdleState());
+        return Clutter.EVENT_STOP;
+    }
+}
+
+export const ZoneDesignerRoot = GObject.registerClass(
+    class ZoneDesignerRoot extends St.Widget {
+        _init(manager) {
+            super._init({
+                name: 'ZoneDesignerOverlay',
+                reactive: true,
+                can_focus: true,
+                style: 'background-color: rgba(0, 0, 0, 0.6);'
+            });
+            
+            this._manager = manager;
+            this._monitors = Main.layoutManager.monitors;
+            this._currentState = new IdleState();
+            this._zoneWidgets = {};
+            this._zonesModified = false;
+            this._currentDrawMonitorIndex = -1;
+            this._isClosed = false;
+            this._pushedModal = false;
+            this._cycleBtns = [];
+            this._lastRect = null;
+            
+            this.set_position(0, 0);
+            this.set_size(global.stage.width, global.stage.height);
+            
+            this._zonesContainer = new St.Widget();
+            this._zonesContainer.set_position(0, 0);
+            this._zonesContainer.set_size(global.stage.width, global.stage.height);
+            this.add_child(this._zonesContainer);
+
+            let colors = getLayoutColors(manager);
+            this._selection = new St.Widget({
+                style: `background-color: rgba(255,255,255,0.1); border: 2px solid ${colors.border}; border-radius: 12px;`,
+                visible: false
+            });
+            this.add_child(this._selection);
+
+            this._warningLabel = new St.Label({
+                text: _('Hold and drag to draw and expand zone (Min: 450x400)'),
+                style: 'color: #ff7a7a; font-weight: bold; font-size: 14px; background-color: rgba(30,30,30,0.95); padding: 8px 16px; border-radius: 99px; border: 1px solid rgba(255,122,122,0.5); box-shadow: 0 4px 12px rgba(0,0,0,0.5);',
+                visible: false
+            });
+            this.add_child(this._warningLabel);
+
+            this._promptBox = new St.BoxLayout({
+                  vertical: false,
+                  visible: false,
+                  reactive: true,
+                 style: 'background-color: rgba(40,40,40,0.95); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 8px 24px rgba(0,0,0,0.5);'
+              });
+            
+            this._entry = new St.Entry({
+                  hint_text: _('Name this Zone...'),
+                  style: `min-width: 220px; margin-right: 12px; padding: ${ENTRY_PADDING};`,
+                  can_focus: true,
+                  reactive: true
+              });
+            this._entry.connectObject('destroy', () => { this._entry = null; }, this);
+
+            let cancelBox = new St.BoxLayout({ vertical: false });
+            let cancelIcon = new St.Icon({ icon_name: 'window-close-symbolic', icon_size: 16, style: 'margin-right: 8px;' });
+            let cancelLabel = new St.Label({ text: _('Cancel'), y_align: Clutter.ActorAlign.CENTER });
+            cancelBox.add_child(cancelIcon);
+            cancelBox.add_child(cancelLabel);
+            
+            this._cancelBtn = new St.Button({
+                child: cancelBox,
+                style_class: 'button',
+                style: `padding: ${BUTTON_PADDING}; margin-right: 8px;`,
+                reactive: true,
+                can_focus: true,
+                track_hover: true
+            });
+            
+            let cancelArmed = false;
+            if (this._cancelBtn.clear_actions) {
+                this._cancelBtn.clear_actions();
+            }
+            this._cancelBtn.connectObject('button-press-event', (_, event) => {
+                if (event.get_button() !== 1) return Clutter.EVENT_PROPAGATE;
+                cancelArmed = true;
+                return Clutter.EVENT_STOP;
+            }, this);
+            this._cancelBtn.connectObject('button-release-event', (_, event) => {
+                if (event.get_button() !== 1 || !cancelArmed) {
+                    cancelArmed = false;
+                    return Clutter.EVENT_PROPAGATE;
+                }
+                cancelArmed = false;
+                this._hidePromptSafe();
+                this.transitionTo(new IdleState());
+                return Clutter.EVENT_STOP;
+            }, this);
+
+            let saveBox = new St.BoxLayout({ vertical: false });
+            let saveIcon = new St.Icon({ icon_name: 'emblem-ok-symbolic', icon_size: 16, style: 'margin-right: 8px;' });
+            let saveLabel = new St.Label({ text: _('Save'), y_align: Clutter.ActorAlign.CENTER });
+            saveBox.add_child(saveIcon);
+            saveBox.add_child(saveLabel);
+
+            this._saveBtn = new St.Button({
+                 child: saveBox,
+                 style_class: 'button suggested-action',
+                 style: `padding: ${BUTTON_PADDING};`,
+                 reactive: true,
+                 can_focus: true,
+                 track_hover: true
+             });
+            
+            let saveAction = () => {
+                global.stage.set_key_focus(null);
+                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                    if (!this._entry) return GLib.SOURCE_REMOVE;
+                    let name = this._entry.get_text().trim();
+                    if (name && this._lastRect && this._currentDrawMonitorIndex >= 0) {
+                        this._manager.storage.saveCustomZoneRect(name, this._lastRect, this._currentDrawMonitorIndex);
+                        this._zonesModified = true;
+                        this._hidePromptSafe();
+                        this._refreshZones(); 
+                    }
+                    return GLib.SOURCE_REMOVE;
+                });
+            };
+            
+            let saveArmed = false;
+            if (this._saveBtn.clear_actions) {
+                this._saveBtn.clear_actions();
+            }
+            this._saveBtn.connectObject('button-press-event', (_, event) => {
+                if (event.get_button() !== 1) return Clutter.EVENT_PROPAGATE;
+                saveArmed = true;
+                return Clutter.EVENT_STOP;
+            }, this);
+            this._saveBtn.connectObject('button-release-event', (_, event) => {
+                if (event.get_button() !== 1 || !saveArmed) {
+                    saveArmed = false;
+                    return Clutter.EVENT_PROPAGATE;
+                }
+                saveArmed = false;
+                saveAction();
+                return Clutter.EVENT_STOP;
+            }, this);
+
+            this._entry.clutter_text.connectObject('activate', saveAction, this);
+            
+            this._promptBox.add_child(this._entry);
+            this._promptBox.add_child(this._cancelBtn);
+            this._promptBox.add_child(this._saveBtn);
+            this.add_child(this._promptBox);
+
+            this._monitors.forEach((m, i) => {
+                let toolbar = new St.BoxLayout({
+                    vertical: false,
+                    style: 'background-color: rgba(30, 30, 30, 0.95); padding: 12px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); box-shadow: 0 2px 4px rgba(0,0,0,0.2);',
+                    reactive: true
+                });
+                
+                toolbar.set_position(m.x, m.y);
+                toolbar.set_size(m.width, TOPBAR_HEIGHT);
+                
+                let titleLabel = new St.Label({
+                    text: `${_('Zone Designer Mode')}  |  ${_('Monitor')} ${i + 1}`,
+                    y_align: Clutter.ActorAlign.CENTER,
+                    style: 'font-weight: bold; font-size: 16px; color: white; margin-right: 24px;'
+                });
+
+                let cycleBtn = new St.Button({
+                    label: `${_('Layout')}: ${manager.activeLayoutName || _('None')} ${_('(Click to Cycle)')}`,
+                    style_class: 'button',
+                    style: `margin-right: 24px; padding: ${BUTTON_PADDING};`,
+                    y_align: Clutter.ActorAlign.CENTER,
+                    reactive: true, track_hover: true
+                });
+
+                cycleBtn.connectObject('clicked', () => {
+                    global.stage.set_key_focus(null);
+                    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                        manager.cycleLayouts();
+                        this._refreshToolbars();
+                        this._refreshZones();
+                        return GLib.SOURCE_REMOVE;
+                    });
+                }, this);
+                this._cycleBtns.push(cycleBtn);
+
+                let newLayoutBox = new St.BoxLayout({ vertical: false, style: 'margin-right: 24px;', y_align: Clutter.ActorAlign.CENTER });
+                
+                let newLayoutEntry = new St.Entry({
+                    hint_text: _('New Layout Name...'),
+                    style: `min-width: 180px; margin-right: 8px; padding: ${ENTRY_PADDING};`,
+                    can_focus: true, reactive: true
+                });
+                newLayoutEntry.add_style_class_name('new-layout-entry');
+
+                let newLayoutBtn = new St.Button({
+                    label: _('Create'),
+                    style_class: 'button',
+                    style: `padding: ${BUTTON_PADDING};`,
+                    reactive: true, track_hover: true
+                });
+                
+                let handleCreateLayout = () => {
+                    global.stage.set_key_focus(null);
+                    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                        let name = newLayoutEntry.get_text().trim();
+                        if (name) {
+                            let allLayouts = {};
+                            try {
+                                allLayouts = JSON.parse(manager.settings.get_string('named-layouts') || '{}');
+                            } catch {
+                                allLayouts = {};
+                            }
+                            
+                            if (!allLayouts[name]) {
+                                let usedSlots = Object.values(allLayouts).map(l => l.hotkeySlot).filter(s => s);
+                                let freeSlot = [1,2,3,4,5,6,7,8,9].find(s => !usedSlots.includes(s)) || 1;
+                                
+                                allLayouts[name] = { windows: {}, zones: {}, color: '#2ecc71', hotkeySlot: freeSlot };
+                                manager.settings.set_string('named-layouts', JSON.stringify(allLayouts));
+                            }
+                            
+                            manager.storage.restoreNamedLayout(name);
+                            
+                            newLayoutEntry.set_text('');
+                            this._refreshToolbars();
+                            this._refreshZones(); 
+                        }
+                        return GLib.SOURCE_REMOVE;
+                    });
+                };
+
+                newLayoutBtn.connectObject('clicked', handleCreateLayout, this);
+                newLayoutEntry.clutter_text.connectObject('activate', handleCreateLayout, this);
+
+                newLayoutBox.add_child(newLayoutEntry);
+                newLayoutBox.add_child(newLayoutBtn);
+                
+                let spacer = new St.Widget({ x_expand: true, y_expand: true });
+                
+                let hintLabel = new St.Label({
+                    text: _('  Right-click overlapping zones to send them to the back'),
+                    y_align: Clutter.ActorAlign.CENTER,
+                    style: 'color: rgba(255,255,255,0.7); font-weight: 500; margin-right: 24px;'
+                });
+                
+                let quitBox = new St.BoxLayout({ vertical: false });
+                let quitIcon = new St.Icon({ icon_name: 'window-close-symbolic', icon_size: 16, style: 'margin-right: 8px; color: white;' });
+                let quitLabel = new St.Label({ text: _('Quit Designer'), y_align: Clutter.ActorAlign.CENTER, style: 'color: white; font-weight: bold;' });
+                quitBox.add_child(quitIcon);
+                quitBox.add_child(quitLabel);
+
+                let quitBtn = new St.Button({
+                    child: quitBox,
+                    style_class: 'button',
+                    style: `padding: ${BUTTON_PADDING}; height: ${QUIT_BUTTON_HEIGHT}px; background-color: #E95420; border: 1px solid #C84617; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.4);`,
+                    y_align: Clutter.ActorAlign.CENTER,
+                    x_align: Clutter.ActorAlign.CENTER,
+                    reactive: true,
+                    track_hover: true
+                });
+                
+                quitBtn.connectObject('notify::hover', () => {
+                    if (quitBtn.hover) {
+                        quitBtn.set_style(`padding: ${BUTTON_PADDING}; height: ${QUIT_BUTTON_HEIGHT}px; background-color: #F37343; border: 1px solid #E95420; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.4);`);
+                    } else {
+                        quitBtn.set_style(`padding: ${BUTTON_PADDING}; height: ${QUIT_BUTTON_HEIGHT}px; background-color: #E95420; border: 1px solid #C84617; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.4);`);
+                    }
+                }, this);
+
+                quitBtn.connectObject('clicked', () => {
+                    global.stage.set_key_focus(null);
+                    this.close();
+                }, this);
+                
+                toolbar.add_child(titleLabel);
+                toolbar.add_child(cycleBtn);
+                toolbar.add_child(newLayoutBox);
+                toolbar.add_child(spacer);
+                toolbar.add_child(hintLabel);
+                toolbar.add_child(quitBtn);
+                
+                this.add_child(toolbar);
+            });
+
+            this.connectObject('button-press-event', (_, event) => {
+                let source = event.get_source();
+                let temp = source;
+                
+                while (temp && temp !== this) {
+                    if (temp._isZoneBox || temp._isZoneControl || temp === this._promptBox) {
+                        return Clutter.EVENT_PROPAGATE; 
+                    }
+                    temp = temp.get_parent();
+                }
+
+                let [x, y] = event.get_coords();
+                
+                this._currentDrawMonitorIndex = this._monitors.findIndex(mon => 
+                    x >= mon.x && x < mon.x + mon.width && y >= mon.y && y < mon.y + mon.height
+                );
+                
+                if (this._currentDrawMonitorIndex === -1) return Clutter.EVENT_PROPAGATE;
+                
+                let mon = this._monitors[this._currentDrawMonitorIndex];
+                
+                if (y <= mon.y + TOPBAR_HEIGHT) return Clutter.EVENT_PROPAGATE; 
+
+                if (this._promptBox.visible) {
+                    this._hidePromptSafe();
+                }
+
+                this.transitionTo(new DrawState(x, y));
+                
+                this._selection.set_position(x, y);
+                this._selection.set_size(0, 0);
+                this._selection.show();
+                
+                return Clutter.EVENT_STOP;
+            }, this);
+
+            this.connectObject('motion-event', (_, event) => {
+                if (this._currentState instanceof IdleState || this._currentDrawMonitorIndex === -1) return Clutter.EVENT_PROPAGATE;
+                let [x, y] = event.get_coords();
+                return this._currentState.onMotion(this, x, y);
+            }, this);
+
+            this.connectObject('button-release-event', () => {
+                if (this._currentState instanceof IdleState) return Clutter.EVENT_PROPAGATE;
+                
+                return this._currentState.onRelease(this);
+            }, this);
+
+            this._refreshZones();
+        }
+
+        transitionTo(state) {
+            this._currentState = state;
+        }
+
+        _refreshToolbars() {
+            let name = this._manager.activeLayoutName || _('None');
+            for (let btn of this._cycleBtns) {
+                btn.set_label(`${_('Layout')}: ${name} ${_('(Click to Cycle)')}`);
+            }
+        }
+
+        _hidePromptSafe() {
+            global.stage.set_key_focus(null);
+            
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                if (this._promptBox) {
+                    this._promptBox.hide();
+                    this._selection.hide();
+                    if (this._entry) {
+                        this._entry.set_text('');
+                    }
+                }
+                return GLib.SOURCE_REMOVE;
+            });
+        }
+        
+        _refreshZones() {
+            global.stage.set_key_focus(null);
+            
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                if (!this._zonesContainer) return GLib.SOURCE_REMOVE;
+
+                global.stage.set_key_focus(this);
+
+                this._zonesContainer.destroy_all_children();
+                this._zoneWidgets = {};
+                
+                let customSections = this._manager.storage.getCustomSections();
+
+                for (const [name, cs] of Object.entries(customSections)) {
+                    let mIndex = cs.monitorIndex !== undefined ? cs.monitorIndex : 0;
+                    let mCount = Main.layoutManager.monitors.length;
+                    let safeIndex = Math.max(0, Math.min(mIndex, mCount - 1));
+                    let monitor = this._monitors[safeIndex];
+                    
+                    if (!monitor) continue; 
+
+                    let panelHeight = Main.panel.height;
+                    let workAreaHeight = monitor.height - panelHeight;
+
+                    let crx = Number(cs.rx) || 0;
+                    let cry = Number(cs.ry) || 0;
+                    let crw = Number(cs.rw) || 0.2;
+                    let crh = Number(cs.rh) || 0.2;
+
+                    let rx = monitor.x + Math.round(monitor.width * crx);
+                    let ry = monitor.y + panelHeight + Math.round(workAreaHeight * cry);
+                    
+                    let rw = Math.max(450, Math.round(monitor.width * crw));
+                    let rh = Math.max(400, Math.round(workAreaHeight * crh));
+                    
+                    let isTemp = name.startsWith('__unnamed_') || cs.isTemporary;
+                    let displayName = isTemp ? '' : name;
+
+                    let color = cs.color || '#2ecc71';
+                    let borderCol = hexToRgba(color, 1.0);
+
+                    let borderStyle = isTemp ? `2px dotted rgba(255, 255, 255, 0.6)` : `2px dashed ${borderCol}`;
+                    let bgStyle = isTemp ? `rgba(255, 255, 255, 0.05)` : `rgba(0,0,0,0.15)`;
+
+                    let zoneBox = new St.Widget({
+                        reactive: true,
+                        x: rx, y: ry, width: rw, height: rh,
+                        style: `background-color: ${bgStyle}; border: ${borderStyle}; border-radius: 12px;`
+                    });
+
+                    zoneBox.set_layout_manager(new Clutter.BinLayout());
+                    zoneBox._isZoneBox = true;
+
+                    let labelBox = new St.BoxLayout({
+                        vertical: false,
+                        style: 'background-color: rgba(40,40,40,0.95); border-radius: 8px; padding: 6px 8px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 8px rgba(0,0,0,0.3);',
+                        x_align: Clutter.ActorAlign.CENTER,
+                        y_align: Clutter.ActorAlign.CENTER,
+                        reactive: true
+                    });
+                    labelBox._isZoneControl = true;
+                    
+                    let nameEntry = new St.Entry({
+                        text: displayName,
+                        hint_text: isTemp ? _('Unnamed Zone') : '',
+                        style: `min-width: 120px; background-color: rgba(0,0,0,0.2); border-radius: 4px; color: white; font-weight: bold; margin-right: 8px; padding: ${ENTRY_PADDING};`,
+                        can_focus: true, reactive: true
+                    });
+                    nameEntry._isZoneControl = true;
+                    
+                    let handleZoneRename = () => {
+                        global.stage.set_key_focus(null);
+
+                        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                            let newName = nameEntry.get_text().trim();
+                            if (newName && newName !== name) {
+                                let zones = this._manager.storage.getCustomSections();
+                                let oldData = zones[name];
+
+                                if (isTemp) {
+                                    delete oldData.isTemporary;
+                                    const COLORS = ['#e74c3c', '#3498db', '#9b59b6', '#f1c40f', '#e67e22', '#1abc9c', '#2ecc71', '#ff7979'];
+                                    let used = Object.values(zones).map(z => z.color);
+                                    let available = COLORS.filter(c => !used.includes(c));
+                                    oldData.color = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : COLORS[Math.floor(Math.random() * COLORS.length)];
+                                }
+
+                                zones[newName] = oldData;
+                                delete zones[name];
+                                this._manager.storage.setCustomSectionsAndSave(zones);
+                                this._zonesModified = true;
+                                this._refreshZones();
+                            }
+                            return GLib.SOURCE_REMOVE;
+                        });
+                    };
+
+                    let zSaveBtn = new St.Button({
+                        child: new St.Icon({ icon_name: 'emblem-ok-symbolic', icon_size: 16 }),
+                        style_class: 'button suggested-action',
+                        style: `padding: 6px; margin-right: 8px;`,
+                        reactive: true, track_hover: true,
+                        visible: false
+                    });
+                    zSaveBtn._isZoneControl = true;
+                    
+                    let saveArmed = false;
+                    if (zSaveBtn.clear_actions) {
+                        zSaveBtn.clear_actions();
+                    }
+
+                    zSaveBtn.connectObject('button-press-event', (_, event) => {
+                        if (event.get_button() !== 1) {
+                            return Clutter.EVENT_PROPAGATE;
+                        }
+                        saveArmed = true;
+                        return Clutter.EVENT_STOP;
+                    }, this);
+
+                    zSaveBtn.connectObject('button-release-event', (_, event) => {
+                        if (event.get_button() !== 1 || !saveArmed) {
+                            saveArmed = false;
+                            return Clutter.EVENT_PROPAGATE;
+                        }
+                        saveArmed = false;
+                        handleZoneRename();
+                        return Clutter.EVENT_STOP;
+                    }, this);
+
+                    if (!zSaveBtn.clear_actions) {
+                        zSaveBtn.connectObject('clicked', handleZoneRename, this);
+                    }
+
+                    nameEntry.clutter_text.connectObject('text-changed', () => {
+                        if (nameEntry.get_text().trim() !== name) {
+                            if (!zSaveBtn.visible) zSaveBtn.show();
+                        } else {
+                            if (zSaveBtn.visible) zSaveBtn.hide();
+                        }
+                    }, this);
+
+                    let sendToBackBtn = new St.Button({
+                        child: new St.Icon({ icon_name: 'go-bottom-symbolic', icon_size: 16 }),
+                        style_class: 'button',
+                        style: `padding: 6px; margin-right: 8px;`,
+                        reactive: true, track_hover: true
+                    });
+                    sendToBackBtn._isZoneControl = true;
+
+                    let sendToBackArmed = false;
+                    if (sendToBackBtn.clear_actions) {
+                        sendToBackBtn.clear_actions();
+                    }
+
+                    sendToBackBtn.connectObject('button-press-event', (_, event) => {
+                        if (event.get_button() !== 1) {
+                            return Clutter.EVENT_PROPAGATE;
+                        }
+                        sendToBackArmed = true;
+                        return Clutter.EVENT_STOP;
+                    }, this);
+
+                    sendToBackBtn.connectObject('button-release-event', (_, event) => {
+                        if (event.get_button() !== 1 || !sendToBackArmed) {
+                            sendToBackArmed = false;
+                            return Clutter.EVENT_PROPAGATE;
+                        }
+                        sendToBackArmed = false;
+                        global.stage.set_key_focus(null);
+                        if (this._zonesContainer && zoneBox.get_parent() === this._zonesContainer) {
+                            this._zonesContainer.set_child_below_sibling(zoneBox, null); 
+                        }
+                        return Clutter.EVENT_STOP;
+                    }, this);
+
+                    if (!sendToBackBtn.clear_actions) {
+                        sendToBackBtn.connectObject('clicked', () => {
+                            global.stage.set_key_focus(null);
+                            if (this._zonesContainer && zoneBox.get_parent() === this._zonesContainer) {
+                                this._zonesContainer.set_child_below_sibling(zoneBox, null); 
+                            }
+                        }, this);
+                    }
+
+                    let handleZoneDelete = () => {
+                        global.stage.set_key_focus(null);
+            
+                        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                            let zones = this._manager.storage.getCustomSections();
+                            delete zones[name];
+                            this._manager.storage.setCustomSectionsAndSave(zones);
+                            this._zonesModified = true;
+                            this._refreshZones();
+                            return GLib.SOURCE_REMOVE;
+                        });
+                    };
+
+                    let delIcon = new St.Icon({ icon_name: 'user-trash-symbolic', icon_size: 16 });
+                    delIcon._isZoneControl = true;
+
+                    let delBtn = new St.Button({
+                        child: delIcon,
+                        style_class: 'button destructive-action',
+                        style: `padding: 6px;`,
+                        reactive: true, track_hover: true
+                    });
+                    delBtn._isZoneControl = true;
+
+                    let deleteArmed = false;
+                    if (delBtn.clear_actions) {
+                        delBtn.clear_actions();
+                    }
+
+                    delBtn.connectObject('button-press-event', (_, event) => {
+                        if (event.get_button() !== 1) {
+                            return Clutter.EVENT_PROPAGATE;
+                        }
+
+                        deleteArmed = true;
+                        return Clutter.EVENT_STOP;
+                    }, this);
+
+                    delBtn.connectObject('button-release-event', (_, event) => {
+                        if (event.get_button() !== 1 || !deleteArmed) {
+                            deleteArmed = false;
+                            return Clutter.EVENT_PROPAGATE;
+                        }
+
+                        deleteArmed = false;
+                        handleZoneDelete();
+                        return Clutter.EVENT_STOP;
+                    }, this);
+
+                    if (!delBtn.clear_actions) {
+                        delBtn.connectObject('clicked', handleZoneDelete, this);
+                    }
+
+                    let resizeWrapper = new St.BoxLayout({
+                        x_expand: true, y_expand: true,
+                        x_align: Clutter.ActorAlign.END,
+                        y_align: Clutter.ActorAlign.END,
+                        reactive: false 
+                    });
+
+                    let resizeHandle = new St.BoxLayout({
+                        reactive: true,
+                        style: `background-color: rgba(40,40,40,0.8); border-top: 1px solid rgba(255,255,255,0.2); border-left: 1px solid rgba(255,255,255,0.2); border-radius: 8px 0 12px 0; padding: 8px;`,
+                        vertical: false
+                    });
+                    resizeHandle.add_child(new St.Icon({ icon_name: 'view-fullscreen-symbolic', icon_size: 16, style: 'color: white;' }));
+                    resizeWrapper.add_child(resizeHandle);
+
+                    labelBox.add_child(nameEntry);
+                    labelBox.add_child(zSaveBtn);
+                    labelBox.add_child(sendToBackBtn);
+                    labelBox.add_child(delBtn);
+
+                    zoneBox.add_child(resizeWrapper); 
+                    zoneBox.add_child(labelBox);      
+                    
+                    zoneBox.connectObject('button-press-event', (_, event) => {
+                        let source = event.get_source();
+                        let temp = source;
+                        let isInteractive = false;
+                        while (temp && temp !== zoneBox) {
+                            if (temp._isZoneControl) {
+                                isInteractive = true;
+                                break;
+                            }
+                            temp = temp.get_parent();
+                        }
+                        
+                        let button = event.get_button();
+                        
+                        if (button === 3) {
+                            if (this._zonesContainer && zoneBox.get_parent() === this._zonesContainer) {
+                                this._zonesContainer.set_child_below_sibling(zoneBox, null); 
+                            }
+                            return Clutter.EVENT_STOP;
+                        }
+
+                        if (isInteractive) {
+                            return Clutter.EVENT_PROPAGATE; 
+                        }
+
+                        if (button === 1) {
+                            if (this._zonesContainer && zoneBox.get_parent() === this._zonesContainer) {
+                                this._zonesContainer.set_child_above_sibling(zoneBox, null);
+                            }
+                        }
+
+                        if (this._promptBox.visible) this._hidePromptSafe();
+
+                        let [x, y] = event.get_coords();
+                        
+                        this._currentDrawMonitorIndex = safeIndex;
+                        this.transitionTo(new MoveState(name, x - zoneBox.x, y - zoneBox.y, safeIndex));
+                        return Clutter.EVENT_STOP;
+                    }, this);
+
+                    resizeHandle.connectObject('button-press-event', (_, event) => {
+                        let button = event.get_button();
+
+                        if (button === 1) {
+                            if (this._zonesContainer && zoneBox.get_parent() === this._zonesContainer) {
+                                this._zonesContainer.set_child_above_sibling(zoneBox, null);
+                            }
+                            
+                            if (this._promptBox.visible) this._hidePromptSafe();
+
+                            this._currentDrawMonitorIndex = safeIndex;
+                            this.transitionTo(new ResizeState(name, safeIndex));
+                            return Clutter.EVENT_STOP;
+                        }
+                        return Clutter.EVENT_PROPAGATE;
+                    }, this);
+
+                    this._zoneWidgets[name] = zoneBox;
+                    this._zonesContainer.add_child(zoneBox);
+                }
+
+                return GLib.SOURCE_REMOVE;
+            });
+        }
+
+        open() {
+            Main.layoutManager.uiGroup.add_child(this);
+            this._pushedModal = Main.pushModal(this);
+            
+            global.stage.connectObject('captured-event', (_, event) => {
+                if (event.type() === Clutter.EventType.KEY_PRESS && event.get_key_symbol() === Clutter.KEY_Escape) {
+                    if (!(this._currentState instanceof IdleState)) {
+                        this.transitionTo(new IdleState());
+                        if (this._selection) this._selection.hide();
+                        if (this._warningLabel) this._warningLabel.hide();
+                        this._refreshZones(); 
+                        return Clutter.EVENT_STOP;
+                    }
+
+                    if (this._promptBox && this._promptBox.visible) {
+                        this._hidePromptSafe();
+                        return Clutter.EVENT_STOP;
+                    }
+
+                    let focus = global.stage.get_key_focus();
+                    if (focus && focus.has_style_class_name && focus.has_style_class_name('new-layout-entry')) {
+                        global.stage.set_key_focus(this);
+                        return Clutter.EVENT_STOP;
+                    }
+
+                    this.close();
+                    return Clutter.EVENT_STOP;
+                }
+                return Clutter.EVENT_PROPAGATE;
+            }, this);
+
+            global.stage.set_key_focus(this);
+        }
+
+        close() {
+            if (this._isClosed) return;
+            this._isClosed = true;
+
+            global.stage.disconnectObject(this);
+            global.stage.set_key_focus(null); 
+
+            if (this._pushedModal) {
+                Main.popModal(this._pushedModal);
+                this._pushedModal = false;
+            }
+            
+            let didModify = this._zonesModified;
+            
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                if (this.get_parent()) {
+                    Main.layoutManager.uiGroup.remove_child(this);
+                }
+                this._cycleBtns = [];
+                this._zoneWidgets = {};
+                this._lastRect = null;
+                
+                this.destroy();
+
+                this._manager.onDesignerClosed(didModify);
+                return GLib.SOURCE_REMOVE;
+            });
+        }
+    }
+);

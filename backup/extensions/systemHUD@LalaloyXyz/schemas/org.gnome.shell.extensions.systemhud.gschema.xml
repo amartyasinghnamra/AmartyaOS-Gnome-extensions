@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.systemhud" path="/org/gnome/shell/extensions/systemhud/">
+    <key name="enable-animations" type="b">
+      <default>true</default>
+      <summary>Enable animations</summary>
+      <description>Whether the HUD uses open/close animations.</description>
+    </key>
+    <key name="show-copy-button" type="b">
+      <default>true</default>
+      <summary>Show copy button</summary>
+      <description>Whether the HUD shows a button to copy the displayed system information to the clipboard.</description>
+    </key>
+    <key name="refresh-interval-ms" type="i">
+      <default>1000</default>
+      <range min="500" max="10000"/>
+      <summary>Refresh interval</summary>
+      <description>Base data fetch interval in milliseconds. Lower values refresh more often, while higher values reduce load and improve smoothness.</description>
+    </key>
+    <key name="window-width-percent" type="i">
+      <default>40</default>
+      <range min="25" max="70"/>
+      <summary>HUD width</summary>
+      <description>HUD width as a percentage of the primary monitor.</description>
+    </key>
+    <key name="window-height-percent" type="i">
+      <default>40</default>
+      <range min="25" max="70"/>
+      <summary>HUD height</summary>
+      <description>HUD height as a percentage of the primary monitor.</description>
+    </key>
+    <key name="show-power-section" type="b">
+      <default>true</default>
+      <summary>Show power section</summary>
+      <description>Whether the battery and power section is shown.</description>
+    </key>
+    <key name="show-cpu-graph" type="b">
+      <default>true</default>
+      <summary>Show CPU graph</summary>
+      <description>Whether the per-core CPU history graph is shown.</description>
+    </key>
+    <key name="show-gpu-graph" type="b">
+      <default>true</default>
+      <summary>Show GPU graphs</summary>
+      <description>Whether GPU utilization, memory and temperature history graphs are shown.</description>
+    </key>
+    <key name="cpu-core-colors" type="as">
+      <default>[]</default>
+      <summary>CPU core colors</summary>
+      <description>Custom colors for CPU load graph traces and core indicators.</description>
+    </key>
+  </schema>
+</schemalist>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512" x="0" y="0" viewBox="0 0 24 24" style="enable-background:new 0 0 512 512" xml:space="preserve" class="">
+  <g>
+    <g fill="#000" fill-rule="evenodd" clip-rule="evenodd">
+      <path d="M3 15.75a.75.75 0 0 1 .75.75v3c0 .414.336.75.75.75h3a.75.75 0 0 1 0 1.5h-3a2.25 2.25 0 0 1-2.25-2.25v-3a.75.75 0 0 1 .75-.75zM21 15.75a.75.75 0 0 1 .75.75v3a2.25 2.25 0 0 1-2.25 2.25h-3a.75.75 0 0 1 0-1.5h3a.75.75 0 0 0 .75-.75v-3a.75.75 0 0 1 .75-.75zM15.75 3a.75.75 0 0 1 .75-.75h3a2.25 2.25 0 0 1 2.25 2.25v3a.75.75 0 0 1-1.5 0v-3a.75.75 0 0 0-.75-.75h-3a.75.75 0 0 1-.75-.75zM4.5 3.75a.75.75 0 0 0-.75.75v3a.75.75 0 0 1-1.5 0v-3A2.25 2.25 0 0 1 4.5 2.25h3a.75.75 0 0 1 0 1.5z" fill="#ffffff" opacity="1" data-original="#000000" class=""></path>
+    </g>
+
+    <path d="M15.25 7.5H10.5a2.5 2.5 0 0 0 0 5h3a2.5 2.5 0 0 1 0 5H8.75" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="1" class=""></path>
+  </g>
+</svg>

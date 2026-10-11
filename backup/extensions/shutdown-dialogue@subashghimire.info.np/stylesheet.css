@@ -1,0 +1,9 @@
+.shutdown-dialogue {
+    border-radius: 10px;
+    padding: 20px;
+}
+
+.dialog-content {
+    font-size: 16px;
+    padding: auto;
+}

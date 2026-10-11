@@ -1,0 +1,290 @@
+'use strict';
+
+import Gio from 'gi://Gio';
+
+export const SOURCE_SCREEN = 0;
+export const SOURCE_WINDOW = 1;
+export const SOURCE_AUDIO = 2;
+// Screen or window, picked in the portal dialog.
+export const SOURCE_CHOOSE = 3;
+
+const BUS_NAME = 'org.gnome.ShellCast';
+const OBJECT_PATH = '/org/gnome/ShellCast';
+
+const CAST_IFACE_XML = `
+<node>
+  <interface name="org.gnome.ShellCast1">
+    <method name="ListDevices">
+      <arg type="a(sssu)" direction="out" name="devices"/>
+    </method>
+    <method name="GetStatus">
+      <arg type="s" direction="out" name="state"/>
+      <arg type="s" direction="out" name="device_id"/>
+    </method>
+    <method name="GetDetails">
+      <arg type="s" direction="out" name="transport"/>
+      <arg type="s" direction="out" name="codec"/>
+      <arg type="s" direction="out" name="encoder"/>
+      <arg type="s" direction="out" name="format"/>
+      <arg type="as" direction="out" name="receiver_codecs"/>
+    </method>
+    <method name="GetLastEvent">
+      <arg type="s" direction="out" name="kind"/>
+      <arg type="s" direction="out" name="message"/>
+    </method>
+    <method name="GetVersion">
+      <arg type="s" direction="out" name="version"/>
+    </method>
+    <method name="StartCast">
+      <arg type="s" direction="in" name="device_id"/>
+      <arg type="u" direction="in" name="source"/>
+      <arg type="a{sv}" direction="in" name="options"/>
+    </method>
+    <method name="StopCast"/>
+    <method name="GetVolume">
+      <arg type="d" direction="out" name="level"/>
+    </method>
+    <method name="SetVolume">
+      <arg type="d" direction="in" name="level"/>
+    </method>
+    <signal name="DevicesChanged"/>
+    <signal name="StateChanged">
+      <arg type="s" name="state"/>
+      <arg type="s" name="device_id"/>
+    </signal>
+    <signal name="VolumeChanged">
+      <arg type="d" name="level"/>
+    </signal>
+  </interface>
+</node>`;
+
+// Wraps the org.gnome.ShellCast1 D-Bus service. The daemon is D-Bus
+// activatable: constructing the proxy doesn't launch it, but a method call does.
+export class CastDaemon {
+    constructor({
+        onDevicesChanged,
+        onStateChanged,
+        onVolumeChanged,
+        onDaemonGone,
+        onError,
+        onStartError,
+    }) {
+        this._onDevicesChanged = onDevicesChanged;
+        this._onStateChanged = onStateChanged;
+        this._onVolumeChanged = onVolumeChanged;
+        this._onDaemonGone = onDaemonGone;
+        this._onError = onError;
+        this._onStartError = onStartError;
+
+        // Aborts in-flight calls on destroy(); D-Bus replies can outlive
+        // disable() and touch already-destroyed widgets.
+        this._cancellable = new Gio.Cancellable();
+
+        const CastProxy = Gio.DBusProxy.makeProxyWrapper(CAST_IFACE_XML);
+
+        this._proxy = new CastProxy(
+            Gio.DBus.session,
+            BUS_NAME,
+            OBJECT_PATH,
+            (proxy, error) => {
+                // Cancelling init_async still invokes this callback, with a
+                // "cancelled" error we must not report as a daemon failure.
+                if (this._cancellable.is_cancelled()) return;
+                if (error) {
+                    this._onError(error.message);
+                    return;
+                }
+                proxy.connectObject(
+                    'g-signal::DevicesChanged',
+                    () => this._onDevicesChanged(),
+                    this,
+                );
+                // g-signal passes (proxy, sender, signalName, parameters):
+                // the payload is the fourth argument, and a GVariant.
+                proxy.connectObject(
+                    'g-signal::StateChanged',
+                    (_p, _sender, _name, params) => {
+                        const [state, deviceId] = params.deepUnpack();
+                        this._onStateChanged(state, deviceId);
+                    },
+                    this,
+                );
+                proxy.connectObject(
+                    'g-signal::VolumeChanged',
+                    (_p, _sender, _name, params) => this._onVolumeChanged(params.deepUnpack()[0]),
+                    this,
+                );
+            },
+            this._cancellable,
+            Gio.DBusProxyFlags.DO_NOT_AUTO_START_AT_CONSTRUCTION |
+                Gio.DBusProxyFlags.DO_NOT_LOAD_PROPERTIES,
+        );
+
+        // A dying daemon (crash, kill) sends no final StateChanged, leaving the
+        // indicator stuck "casting". Watching does not activate the daemon.
+        this._watchId = Gio.bus_watch_name(
+            Gio.BusType.SESSION,
+            BUS_NAME,
+            Gio.BusNameWatcherFlags.NONE,
+            null,
+            () => this._onDaemonGone(),
+        );
+    }
+
+    // Drops a reply handler once destroy() has cancelled: a cancelled call
+    // still fires its callback, into now-destroyed menu items.
+    _reply(handler) {
+        return (...args) => {
+            if (!this._cancellable.is_cancelled()) handler(...args);
+        };
+    }
+
+    listDevices(callback) {
+        this._proxy.ListDevicesRemote(
+            this._reply((result, error) => {
+                if (error) {
+                    // A missing daemon is reported by the version check, so a
+                    // failure here just shows the "Searching…" placeholder.
+                    callback([]);
+                    return;
+                }
+                const [devices] = result;
+                // Bit 0 of the Cast capability mask = video out; devices without
+                // it (speakers, cast groups) can only receive audio.
+                callback(
+                    devices.map(([id, name, address, capabilities]) => ({
+                        id,
+                        name,
+                        address,
+                        hasVideo: (capabilities & 1) !== 0,
+                    })),
+                );
+            }),
+            this._cancellable,
+        );
+    }
+
+    // `noAutoStart` queries status without D-Bus-activating an idle daemon.
+    getStatus(callback, { noAutoStart = false } = {}) {
+        const reply = this._reply((result, error) => {
+            if (error) {
+                callback('idle', '');
+                return;
+            }
+            const [state, deviceId] = result;
+            callback(state, deviceId);
+        });
+        // The generated *Remote wrapper reads a trailing number as call flags.
+        if (noAutoStart) {
+            this._proxy.GetStatusRemote(reply, Gio.DBusCallFlags.NO_AUTO_START, this._cancellable);
+        } else {
+            this._proxy.GetStatusRemote(reply, this._cancellable);
+        }
+    }
+
+    getDetails(callback) {
+        this._proxy.GetDetailsRemote(
+            this._reply((result, error) => {
+                if (error) {
+                    callback(null);
+                    return;
+                }
+                const [transport, codec, encoder, format, receiverCodecs] = result;
+                callback({ transport, codec, encoder, format, receiverCodecs });
+            }),
+            this._cancellable,
+        );
+    }
+
+    getLastEvent(callback) {
+        this._proxy.GetLastEventRemote(
+            this._reply((result, error) => {
+                if (error) {
+                    callback({ kind: '', message: '' });
+                    return;
+                }
+                const [kind, message] = result;
+                callback({ kind, message });
+            }),
+            this._cancellable,
+        );
+    }
+
+    // Passes null when the daemon can't be reached: the call auto-starts it, so
+    // an error here means activation failed and it isn't installed.
+    getVersion(callback) {
+        this._proxy.GetVersionRemote(
+            this._reply((result, error) => {
+                if (error) {
+                    callback(null);
+                    return;
+                }
+                callback(result[0]);
+            }),
+            this._cancellable,
+        );
+    }
+
+    startCast(deviceId, source, options) {
+        this._proxy.StartCastRemote(
+            deviceId,
+            source,
+            options,
+            this._reply((_result, error) => {
+                if (error) this._onStartError(error.message);
+            }),
+            this._cancellable,
+        );
+    }
+
+    stopCast() {
+        this._proxy.StopCastRemote(
+            this._reply((_result, error) => {
+                if (error) this._onError(error.message);
+            }),
+            this._cancellable,
+        );
+    }
+
+    getVolume(callback) {
+        this._proxy.GetVolumeRemote(
+            this._reply((result, error) => {
+                if (error) {
+                    callback(null);
+                    return;
+                }
+                callback(result[0]);
+            }),
+            this._cancellable,
+        );
+    }
+
+    setVolume(level) {
+        this._proxy.SetVolumeRemote(
+            level,
+            this._reply((_result, error) => {
+                if (error) this._onError(error.message);
+            }),
+            this._cancellable,
+        );
+    }
+
+    destroy() {
+        // Cancel first: aborts in-flight calls and makes _reply() drop queued ones.
+        this._cancellable.cancel();
+        if (this._proxy) {
+            this._proxy.disconnectObject(this);
+            this._proxy = null;
+        }
+        if (this._watchId) {
+            Gio.bus_unwatch_name(this._watchId);
+            this._watchId = 0;
+        }
+        this._onDevicesChanged = null;
+        this._onStateChanged = null;
+        this._onVolumeChanged = null;
+        this._onDaemonGone = null;
+        this._onError = null;
+        this._onStartError = null;
+    }
+}

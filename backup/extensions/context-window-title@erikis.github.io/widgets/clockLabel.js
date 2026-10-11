@@ -1,0 +1,249 @@
+import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
+import Pango from 'gi://Pango';
+import St from 'gi://St';
+
+import ContextButton from './contextButton.js';
+import * as Values from '../preferences/values.js';
+
+export default class ClockLabel extends St.Label {
+    static {
+        GObject.registerClass(this);
+    }
+
+    constructor() {
+        super({ style_class: 'clock' });
+
+        // Keep same style as in gnome-shell's dateMenu.js
+        this.clutter_text.y_align = Clutter.ActorAlign.CENTER;
+        this.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+
+        this._isStopped = true;
+        this._locale = undefined; // Use runtime's default locale
+        this._options = {};
+        this._second = Values.ClockSecond.OFF;
+        this._f = null; // Intl.DateTimeFormat
+        this._t = null; // Timeout
+        this._u = false; // Already updated
+    }
+
+    destroy() {
+        // Remove the current update timeout
+        if (this._t !== null) {
+            GLib.source_remove(this._t);
+            this._t = null;
+        }
+
+        // As connectObject was used with this as object, these will be automatically
+        // disconnected when this is destroyed
+        this._connectedClock = null;
+        this._connectedClockDisplay = null;
+
+        super.destroy();
+    }
+
+    // Optionally make the clock more responsive by connecting
+    // to a wall clock and the original clock display
+    _connect(wallClock, originalClockDisplay) {
+        // Do a re-format and an extraordinary update when the time zone changes
+        if (!this._connectedClock) {
+            this._connectedClock = wallClock;
+            this._connectedClock?.connectObject(
+                'notify::timezone',
+                () => {
+                    this._updateFormat();
+                    if (this.mapped) {
+                        this.#updateTime();
+                    }
+                },
+                this
+            );
+        }
+
+        // As dateMenu._clockDisplay updates based on actual wall clock time
+        // (instead of using a monotonic timer, which becomes inaccurate e.g.
+        // after suspend), trigger regular updates when it updates
+        if (!this._connectedClockDisplay) {
+            this._connectedClockDisplay = originalClockDisplay;
+            let lastSeconds = 0; // Keep track between notifications
+            this._connectedClockDisplay?.connectObject(
+                'notify::text',
+                () => {
+                    // Only call #updateTime() if we're actually on a new second/minute
+                    let nowSeconds = Date.now(); // Get milliseconds since the epoch
+                    nowSeconds -= nowSeconds % 1000; // Keep completed seconds only
+                    const second = this._second;
+                    if (
+                        (second === Values.ClockSecond.SECOND &&
+                            nowSeconds !== lastSeconds) ||
+                        (second === Values.ClockSecond.OFF &&
+                            nowSeconds - (nowSeconds % 60000) !==
+                                lastSeconds - (lastSeconds % 60000))
+                    ) {
+                        lastSeconds = nowSeconds;
+                        if (this.mapped) {
+                            this.#updateTime(nowSeconds);
+                        }
+                    }
+                },
+                this
+            );
+        }
+    }
+
+    _updateFormat() {
+        let locale = this._locale; // Only the extension class may modify this._locale
+        let options = { ...this._options }; // Clone, even though this._options is safe to modify
+        const indexOfComma = locale?.indexOf(',');
+        if (indexOfComma >= 0) {
+            // Allow passing in override options as a JSON object after a comma in the locale
+            try {
+                let overrideString = locale.substring(indexOfComma + 1);
+                let overrideOptions =
+                    overrideString.length > 0
+                        ? JSON.parse(overrideString)
+                        : null;
+                if (
+                    typeof overrideOptions === 'object' &&
+                    overrideOptions !== null
+                ) {
+                    Object.assign(options, overrideOptions);
+                    Object.keys(options).forEach((key) => {
+                        if (options[key] === null) {
+                            delete options[key];
+                        }
+                    });
+                }
+            } catch {
+                // Probably invalid JSON, just ignore
+            }
+            locale =
+                indexOfComma > 0
+                    ? locale.substring(0, indexOfComma)
+                    : undefined;
+        }
+        try {
+            this._f = new Intl.DateTimeFormat(locale, options);
+        } catch {
+            // Perhaps invalid locale string (user input)
+            try {
+                this._f = new Intl.DateTimeFormat(undefined, options);
+            } catch {
+                // Or invalid time zone (user input)
+                delete options.timeZone;
+                try {
+                    this._f = new Intl.DateTimeFormat(locale, options);
+                } catch {
+                    try {
+                        this._f = new Intl.DateTimeFormat(locale);
+                    } catch {
+                        this._f = new Intl.DateTimeFormat();
+                    }
+                }
+            }
+        }
+    }
+
+    #updateTime(u = false) {
+        let now = new Date();
+        this.set_text(this._f.format(now));
+        this._u = u;
+        return now;
+    }
+
+    _updateStart() {
+        this._isStopped = false;
+        // Only start a new update timeout if there is no existing one
+        // Also only start timeout if currently mapped, otherwise postpone
+        if (this._t === null && this.mapped) {
+            // Function to use for calculating how many ms until next update
+            let n = null;
+            switch (this._second) {
+                case Values.ClockSecond.SECOND: // Second is on - wait up to 1 s
+                    n = (now) => 1000 - now.getMilliseconds();
+                    break;
+                case Values.ClockSecond.SECOND_10TH:
+                    n = (now) => 100 - (now.getMilliseconds() % 100);
+                    break;
+                case Values.ClockSecond.SECOND_100TH:
+                    n = (now) => 10 - (now.getMilliseconds() % 10);
+                    break;
+                case Values.ClockSecond.SECOND_1000TH:
+                    n = () => 1;
+                    break;
+                default: // Second is off - wait up to 60 s
+                    n = (now) =>
+                        1000 -
+                        now.getMilliseconds() +
+                        Math.max(0, 59 - now.getSeconds()) * 1000;
+                    break;
+            }
+
+            // Function for checking whether already updated
+            const iu = () => {
+                if (this._u === false) {
+                    return false;
+                }
+                // Already updated by call to #updateTime() from _connect()
+                let s = Date.now();
+                s -= s % 1000; // Completed seconds only
+                return this._u === s; // Whether update still valid
+            };
+
+            // If clock is already updated according to iu(), just wait for the next update
+            // using a new timeout. If not updated, then also do an update.
+            let c = null; // Timeout callback
+            const u = () => {
+                if (this._t !== null) {
+                    GLib.source_remove(this._t);
+                    this._t = null;
+                }
+                this._t = GLib.timeout_add(
+                    GLib.PRIORITY_HIGH,
+                    n(iu() ? new Date() : this.#updateTime()), // n: time until next update
+                    c // Use this function or optimized function as timeout callback
+                );
+                return GLib.SOURCE_REMOVE; // Already removed, but also don't set new expiry
+            };
+            c = u;
+            if (this._second === Values.ClockSecond.SECOND_1000TH) {
+                // Optimization for 1 ms updates: keep same timeout running
+                c = () => {
+                    this.#updateTime();
+                    return GLib.SOURCE_CONTINUE;
+                };
+            }
+            u(); // Start
+        }
+    }
+
+    _updateStop(isTemporary = false) {
+        if (!isTemporary) {
+            this._isStopped = true;
+        }
+        if (this._t !== null) {
+            GLib.source_remove(this._t);
+            this._t = null;
+        }
+        this._u = false; // Clear updated state
+    }
+
+    _superVFunc() {
+        // Borrow method from ContextButton
+        return ContextButton.prototype._superVFunc.apply(this, arguments);
+    }
+
+    vfunc_unmap() {
+        // E.g., if on lock screen, shutdown, or another extension is moving things
+        this._updateStop(true); // Stop temporarily so that 'map' can restart
+        this._superVFunc('vfunc_unmap');
+    }
+
+    vfunc_map() {
+        this._superVFunc('vfunc_map');
+        if (!this._isStopped) {
+            this._updateStart();
+        }
+    }
+}

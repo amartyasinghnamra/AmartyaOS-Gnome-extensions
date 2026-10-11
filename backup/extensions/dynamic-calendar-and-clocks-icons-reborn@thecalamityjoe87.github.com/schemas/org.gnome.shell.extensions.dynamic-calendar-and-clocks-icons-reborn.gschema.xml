@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="dynamic-calendar-and-clocks-icons-reborn@thecalamityjoe87.github.com">
+  <schema id="org.gnome.shell.extensions.dynamic-calendar-and-clocks-icons-reborn"
+  path="/org/gnome/shell/extensions/dynamic-calendar-and-clocks-icons-reborn/">
+    <key name="theme" type="s">
+      <default>''</default>
+    </key>
+    <key name="calendar" type="b">
+      <default>true</default>
+    </key>
+    <key name="show-weekday" type="b">
+      <default>true</default>
+    </key>
+    <key name="show-month" type="b">
+      <default>true</default>
+    </key>
+    <key name="clocks" type="b">
+      <default>true</default>
+    </key>
+    <key name="digital-clock" type="b">
+      <default>false</default>
+    </key>
+    <key name="show-seconds" type="b">
+      <default>true</default>
+    </key>
+    <key name="weather" type="b">
+      <default>true</default>
+    </key>
+    <key name="show-background" type="b">
+      <default>true</default>
+    </key>
+    <key name="show-temperature" type="b">
+      <default>true</default>
+    </key>
+  </schema>
+</schemalist>

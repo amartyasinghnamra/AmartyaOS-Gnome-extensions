@@ -1,0 +1,14 @@
+original_path	repository_path	sha256
+/usr/share/amartya-os/wallpapers/default.png	assets/system/usr/share/amartya-os/wallpapers/default.png	412148bac3bc9ba55d61ea759c0264d3e82966e82665614429dfda314fac8401
+/usr/share/amartya-os/branding/no-text-logo-dark.png	assets/system/usr/share/amartya-os/branding/no-text-logo-dark.png	e3f86b2aa50b65487e301c4bd75a54ed40deda8d6acade6393c1f9c8ea1993ae
+/usr/share/amartya-os/branding/os-release	assets/system/usr/share/amartya-os/branding/os-release	b15c8ee9644cfbe8fffe672e24eaec2b0ba4f2b949f3bac04d5c5788aec155c4
+/usr/share/amartya-os/branding/no-text-logo-light.png	assets/system/usr/share/amartya-os/branding/no-text-logo-light.png	c958c3a356894a1542823eb3f157531e2fa6c874386f4b64a6627c30a0828d45
+/usr/share/amartya-os/branding/logo.png	assets/system/usr/share/amartya-os/branding/logo.png	d5554c12687861d9cf89eddb38a3900e3f447e923aa086802d0a01cc6cdc6c81
+/usr/share/amartya-os/branding/no-text-logo.png	assets/system/usr/share/amartya-os/branding/no-text-logo.png	142036d97f31f4844ce143d8158bb8e2edccf1ecaaf465f52b9da69dbc8804b3
+/usr/share/sddm/themes/amartya-os/Main.qml.before-animation-cleanup	assets/system/usr/share/sddm/themes/amartya-os/Main.qml.before-animation-cleanup	c7d70c61b9f776d3b2ce328c2cc70284cf1e6ffcc4544f908c0000bf417a36f8
+/usr/share/sddm/themes/amartya-os/assets/SDDM.png	assets/system/usr/share/sddm/themes/amartya-os/assets/SDDM.png	7949157a1a0b5574dafaa7e92ffdf32e39e509a15974985db4297540cdc57757
+/usr/share/sddm/themes/amartya-os/metadata.desktop	assets/system/usr/share/sddm/themes/amartya-os/metadata.desktop	34f843509b6003256509e1bfddd8ac18b945977fedfe06fa89af6ea31b178553
+/usr/share/sddm/themes/amartya-os/Main.qml	assets/system/usr/share/sddm/themes/amartya-os/Main.qml	65ba83b9d8280213deb4935ca63a3b37652d7a14535b8adfeebc019898abfe03
+/usr/share/sddm/themes/amartya-os/metadata.desktop.bak	assets/system/usr/share/sddm/themes/amartya-os/metadata.desktop.bak	081f64bd59ce02e8f7f7b3d0569d7d07c6fba1666ed81481aecd4a65ec3b156d
+/usr/share/sddm/themes/amartya-os/Main.qml.corrupted-20260822-194423	assets/system/usr/share/sddm/themes/amartya-os/Main.qml.corrupted-20260822-194423	3baf5deff4fdd152b55355e8a9a29b26fe815cc65f5c354ddbbbe27bbaa6595b
+/home/amartya/.local/share/backgrounds/2026-09-27-10-36-19-629245e0-7048-436e-adad-e978373e05f4.png	assets/home/amartya/.local/share/backgrounds/2026-09-27-10-36-19-629245e0-7048-436e-adad-e978373e05f4.png	489e54ddee7139c3c52b15b79695c9cd39a1511878c086d696025968f281d252

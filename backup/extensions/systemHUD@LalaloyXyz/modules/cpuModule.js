@@ -1,0 +1,319 @@
+import { BaseModule } from './baseModule.js';
+
+export class CPUModule extends BaseModule {
+    constructor() {
+        super(1000); // 1 second cache TTL
+        this._networkInterface = { lastIface: null, lastRx: 0, lastTx: 0, lastTimestamp: 0 };
+        // cache results of which/executable checks to avoid repeating them
+        this._execCache = {};
+        this._cpuStatSnapshot = null;
+    }
+
+    // cache-check helper for executables
+    async _hasExecutable(bin) {
+        if (this._execCache[bin] !== undefined) return this._execCache[bin];
+        try {
+            const out = await this._executeCommand(['which', bin]);
+            const exists = !!(out && out.trim());
+            this._execCache[bin] = exists;
+            return exists;
+        } catch (e) {
+            this._execCache[bin] = false;
+            return false;
+        }
+    }
+
+    async _getCoreLoads() {
+        const statText = await this._readFile('/proc/stat');
+        const nextSnapshot = new Map();
+
+        for (const line of statText.split('\n')) {
+            const match = line.match(/^cpu(\d+)\s+(.*)$/);
+            if (!match)
+                continue;
+
+            const values = match[2].trim().split(/\s+/).map(Number);
+            if (values.length < 5 || values.some(value => !Number.isFinite(value)))
+                continue;
+
+            // Use the first eight fields. Guest time is already included in user time.
+            const idle = values[3] + values[4];
+            const total = values.slice(0, 8).reduce((sum, value) => sum + value, 0);
+            nextSnapshot.set(Number(match[1]), { idle, total });
+        }
+
+        const loads = [];
+        for (const [index, current] of nextSnapshot) {
+            const previous = this._cpuStatSnapshot?.get(index);
+            if (!previous) {
+                loads[index] = 0;
+                continue;
+            }
+
+            const totalDelta = current.total - previous.total;
+            const idleDelta = current.idle - previous.idle;
+            loads[index] = totalDelta > 0
+                ? Math.round(Math.max(0, Math.min(100, (1 - idleDelta / totalDelta) * 100)))
+                : 0;
+        }
+
+        this._cpuStatSnapshot = nextSnapshot;
+        return loads;
+    }
+    
+    async getCPUInfo() {
+        if (this._isCacheValid()) {
+            return this._cache.data;
+        }
+
+        try {
+            const coreLoads = await this._getCoreLoads();
+
+            // Get CPU info using lscpu if available, else fallback to /proc/cpuinfo
+            let lscpuText = '';
+            const hasLscpu = await this._hasExecutable('lscpu');
+            if (hasLscpu) {
+                try {
+                    lscpuText = await this._executeCommand(['lscpu']);
+                } catch (e) {
+                    lscpuText = '';
+                }
+            } else {
+                try {
+                    lscpuText = await this._readFile('/proc/cpuinfo');
+                } catch (e) {
+                    lscpuText = '';
+                }
+            }
+            
+            let modelName = "Unknown CPU";
+            const modelNamePatterns = [
+                /Model name:\s+(.+)/,   // Intel, AMD, some ARM
+                /Model:\s+(.+)/,        // Some AMD/older CPUs
+                /CPU:\s+(.+)/,          // Fallback
+                /Hardware:\s+(.+)/,     // ARM
+            ];
+            
+            for (const pattern of modelNamePatterns) {
+                const match = lscpuText.match(pattern);
+                if (match) {
+                    modelName = match[1].trim();
+                    break;
+                }
+            }
+
+            // Core count: try lscpu, then fallback to /proc/cpuinfo
+            let coreCount = 0;
+            const coresMatch = lscpuText.match(/CPU\(s\):\s+(\d+)/);
+            if (coresMatch) {
+                coreCount = parseInt(coresMatch[1]);
+            } else {
+                // Fallback: count "processor" lines in /proc/cpuinfo
+                const cpuinfoCores = lscpuText.match(/^processor\s*:/mg);
+                if (cpuinfoCores) {
+                    coreCount = cpuinfoCores.length;
+                }
+            }
+
+            // Max frequency: try lscpu, then fallback to /proc/cpuinfo
+            let cpumax = 0;
+            const cpumaxMatch = lscpuText.match(/CPU max MHz:\s+([\d.]+)/);
+            if (cpumaxMatch) {
+                cpumax = parseFloat(cpumaxMatch[1]);
+            } else {
+                // Try /sys for ARM
+                try {
+                    const freq = await this._readFile('/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq');
+                    const freqNum = parseInt(freq.trim());
+                    if (!isNaN(freqNum)) {
+                        cpumax = freqNum / 1000; // kHz to MHz
+                    }
+                } catch (e) {
+                    // Ignore error
+                }
+            }
+
+            // Get CPU frequencies and core mapping
+            let freqText = '';
+            try {
+                freqText = await this._readFile('/proc/cpuinfo');
+            } catch (e) {
+                logError(e, 'System HUD: Error reading /proc/cpuinfo');
+            }
+            
+            const coreSpeeds = [];
+            const processorToCoreMap = {};
+            const lines = freqText.split('\n');
+            let currentProcessorId = null;
+            let isAMD = modelName.toLowerCase().includes('amd');
+
+            // Get current CPU frequencies
+            try {
+                const freqOut = await this._executeCommand(['sh', '-c', `
+                    for i in /sys/devices/system/cpu/cpu*/cpufreq/; do
+                        if [ -f "$i/scaling_cur_freq" ]; then
+                            cat "$i/scaling_cur_freq";
+                        elif [ -f "$i/cpuinfo_cur_freq" ]; then
+                            cat "$i/cpuinfo_cur_freq";
+                        fi;
+                    done | sort -V
+                `]);
+
+                const frequencies = freqOut.trim().split('\n');
+                frequencies.forEach((freq, index) => {
+                    if (freq) {
+                        coreSpeeds[index] = Math.floor(parseInt(freq) / 1000); // Convert kHz to MHz
+                    }
+                });
+            } catch (e) {
+                logError(e, 'System HUD: Error reading CPU frequencies');
+            }
+
+            for (let i = 0; i < coreCount; i++) {
+                if (!coreSpeeds[i]) {
+                    coreSpeeds[i] = 0;
+                }
+            }
+
+            // Unified core mapping logic for both AMD and Intel
+            for (const line of lines) {
+                if (line.startsWith('processor')) {
+                    currentProcessorId = line.split(':')[1].trim();
+                } else if (line.startsWith('core id') && currentProcessorId !== null) {
+                    const coreId = line.split(':')[1].trim();
+                    processorToCoreMap[currentProcessorId] = coreId;
+                }
+            }
+
+            const threadsPerCoreMatch = lscpuText.match(/Thread\(s\) per core:\s+(\d+)/);
+            const threadsPerCore = threadsPerCoreMatch ? parseInt(threadsPerCoreMatch[1]) : 2;
+
+            if (isAMD && Object.keys(processorToCoreMap).length === 0) {
+                for (let i = 0; i < coreCount; i++) {
+                    processorToCoreMap[i] = Math.floor(i / threadsPerCore).toString();
+                }
+            }
+
+            // Get temperature data
+            // Only run sensors if available (use exec cache)
+            let sensorText = '';
+            const hasSensors = await this._hasExecutable('sensors');
+            if (hasSensors) {
+                try {
+                    sensorText = await this._executeCommand(['sensors']);
+                } catch (e) {
+                    sensorText = '';
+                }
+            }
+
+            const coreTemps = {};
+            
+            // Universal temperature patterns that work for both Intel and AMD
+            const tempPatterns = [
+                /^\s*Core\s+(\d+):\s*\+?([\d.]+)\s*°?\s*C/mg,           // Standard core temp
+                /^\s*Core\s+\d+\s+\(PECI\s+\d+\):\s*\+?([\d.]+)\s*°?\s*C/mg,  // PECI core temps
+                /^\s*CPU\s+Core\s+(\d+):\s*\+?([\d.]+)\s*°?\s*C/mg,     // Alternative core temp format
+                /^\s*Package\s+id\s+\d+:\s*\+?([\d.]+)\s*°?\s*C/mg,     // Package temp
+                /^\s*Package\s+\d+:\s*\+?([\d.]+)\s*°?\s*C/mg,          // Alternative package temp
+                /^\s*CPU\s+Temperature:\s*\+?([\d.]+)\s*°?\s*C/mg,      // Generic CPU temp
+                // AMD specific patterns
+                /^\s*Tctl:\s*\+?([\d.]+)\s*°?\s*C/mg,                   // AMD Tctl
+                /^\s*Tdie:\s*\+?([\d.]+)\s*°?\s*C/mg,                   // AMD Tdie
+                /^\s*CPU\s+Tctl\/Tdie:\s*\+?([\d.]+)\s*°?\s*C/mg,       // Alternative AMD temp
+                // Intel specific patterns
+                /^\s*Package\s+id\s+0:\s*\+?([\d.]+)\s*°?\s*C/mg,       // Intel package temp
+                /^\s*Core\s+\d+\s+\(PECI\s+\d+\):\s*\+?([\d.]+)\s*°?\s*C/mg,  // Intel PECI
+                /^\s*CPU\s+Package:\s*\+?([\d.]+)\s*°?\s*C/mg           // Intel package temp
+            ];
+            
+            let globalTemp = null;
+            let foundAnyTemp = false;
+            
+            for (const pattern of tempPatterns) {
+                let match;
+                pattern.lastIndex = 0;
+                
+                while ((match = pattern.exec(sensorText)) !== null) {
+                    const coreId = match[1] || '0';
+                    const temp = parseFloat(match[2] || match[1]);
+                    
+                    if (match[1]) {
+                        coreTemps[coreId] = temp.toFixed(0);
+                        foundAnyTemp = true;
+                    } else {
+                        globalTemp = temp;
+                    }
+                }
+            }
+            
+            if (!foundAnyTemp && globalTemp) {
+                for (let i = 0; i < coreCount; i++) {
+                    coreTemps[i.toString()] = globalTemp.toFixed(0);
+                }                
+            }
+
+            if (Object.keys(coreTemps).length === 0) {
+                const anyTempMatch = sensorText.match(/\+?([\d.]+)\s*°?\s*C/);
+                if (anyTempMatch) {
+                    const temp = parseFloat(anyTempMatch[1]);
+                    for (let i = 0; i < Math.ceil(coreCount / 2); i++) {
+                        coreTemps[i.toString()] = temp.toFixed(0);
+                    }
+                }
+            }
+    
+            const result = [];
+            const coreDetails = [];
+            for (let i = 0; i < coreCount; i++) {
+                const coreName = `Core-${String(i).padStart(2, '0')}    |`;
+                const speed = coreSpeeds[i] || 0;
+                const loadPercent = coreLoads[i] ?? 0;
+                const coreload = String(loadPercent).padStart(2, '0');
+                const physicalCoreId = processorToCoreMap[i] || "0";
+                const temp = coreTemps[physicalCoreId] || "N/A";
+                
+                const speedMarker = this._getStatusMarker(loadPercent, [90, 70, 50, 30]);
+
+                const tempNum = parseFloat(temp);
+                const tempMarker = this._getStatusMarker(tempNum, [80, 70, 55, 40, 30, 0]);
+                
+                const speedStr = `${speed} MHz`.padEnd(10);
+                const tempStr = `|  ${coreload}%  |   ${tempMarker} Temp   ${temp} °C`;
+                
+                if (speed < 1000) 
+                    result.push(`${speedMarker} ${coreName}       ${speedStr}   ${tempStr}`);
+                else 
+                    result.push(`${speedMarker} ${coreName}     ${speedStr}    ${tempStr}`);
+
+                coreDetails.push({
+                    index: i,
+                    name: `Core-${String(i).padStart(2, '0')}`,
+                    speed,
+                    load: loadPercent,
+                    temp
+                });
+            }
+    
+            const finalResult = {
+                cpu: modelName,
+                core: coreCount,
+                coreSpeeds: result,
+                coreDetails
+            };
+    
+            this._updateCache(finalResult);
+            return finalResult;
+        } catch (e) {
+            logError(e, 'System HUD: Error reading CPU info');
+            return {
+                cpu: 'Unknown CPU',
+                core: 0,
+                coreSpeeds: ['Error reading CPU information']
+            };
+        }
+    }
+
+    getInfo() {
+        return this.getCPUInfo();
+    }
+}
